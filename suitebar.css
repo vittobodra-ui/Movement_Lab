@@ -1,0 +1,57 @@
+/* Barra comune e segnalazione delle asimmetrie: i colori sono fissi perché questo foglio si aggiunge a quello di ogni programma. */
+.labbar { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem 1.4rem; padding: .4rem 16px; background: #0d1b2b; color: #dfe9f1; font-size: .95rem; }
+.labbar a { color: inherit; text-decoration: none; }
+.labbar .labname { font-weight: 700; font-size: 1.08rem; font-stretch: condensed; letter-spacing: .01em; }
+.labbar nav { display: flex; flex-wrap: wrap; gap: .1rem 1.05rem; }
+.labbar nav a { padding: .2rem 0; border-bottom: 2px solid transparent; font-weight: 400; }
+.labbar nav a:hover { border-bottom-color: #a7b8c7; }
+.labbar nav a[aria-current="page"] { border-bottom-color: #dfe9f1; font-weight: 600; }
+.labbar :focus-visible { outline: 3px solid #79b2f3; outline-offset: 2px; }
+.labclient { margin-left: auto; color: #a7b8c7; font-size: .9rem; }
+.labclient .who { color: #fff; font-weight: 600; }
+.labclient .who:hover { text-decoration: underline; }
+.labclient .change { text-decoration: underline; text-underline-offset: 3px; margin-left: .4rem; }
+.labinstall { font: inherit; font-size: .88rem; color: #dfe9f1; background: transparent; border: 1.5px solid #a7b8c7; border-radius: 3px; padding: .2rem .6rem; cursor: pointer; }
+@media (max-width: 620px) {
+  .labbar { padding: .4rem 12px .1rem; gap: .1rem .8rem; }
+  .labbar .labname { font-size: 1rem; }
+  .labclient { font-size: .84rem; }
+  .labbar nav { order: 3; flex: 0 0 100%; flex-wrap: nowrap; overflow-x: auto; gap: 1.1rem; scrollbar-width: none; }
+  .labbar nav a { white-space: nowrap; padding: .45rem 0; }
+  .labinstall { order: 2; }
+}
+.labnotice { background: #fff4d1; color: #4a3500; border-bottom: 2px solid #8a6a00; padding: .55rem 16px; display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; justify-content: space-between; }
+.labnotice p { margin: 0; max-width: 80ch; }
+.labnotice button { color: #4a3500; border-color: #4a3500; background: transparent; }
+.labnotice button:hover { background: #00000014 !important; }
+.labnotice .close { background: #4a3500; color: #fff4d1; font-weight: 600; }
+.labnotice .close:hover { background: #2f2200 !important; }
+
+.asym { font-weight: 700; white-space: nowrap; color: #a4162d; }
+.asym.lv2 { background: #a4162d; color: #fff; padding: .02em .35em; border-radius: 2px; }
+.asym-note { font-weight: 400; font-size: .84em; display: block; color: var(--ink2); white-space: normal; }
+.asym-sec { border: 1.5px solid var(--ink); padding: .55rem .8rem .5rem; margin-top: 1.1rem; break-inside: avoid; }
+.asym-sec h2 { font-size: 1.05rem; margin: 0 0 .25rem; font-weight: 600; }
+.asym-sec ul { margin: 0 0 .3rem; padding: 0; list-style: none; }
+.asym-sec li { margin-bottom: .22rem; padding-left: 2.1em; text-indent: -2.1em; }
+.asym-sec li > .asym:first-child { display: inline-block; min-width: 1.75em; text-indent: 0; text-align: center; margin-right: .2em; }
+.asym-sec p { margin: 0 0 .25rem; }
+.asym-legend { font-size: .8rem; color: var(--ink2); margin: .35rem 0 0 !important; }
+.asym-legend .asym { font-size: .92em; }
+.asym-live { font-size: .92rem; min-height: 1.3em; margin: .15rem 0; color: var(--bay-ink2, inherit); }
+.asym-live .asym { color: #ff9dac; }
+.asym-live .asym.lv2 { background: #c8233f; color: #fff; }
+.dash-sample { display: inline-block; vertical-align: middle; margin-right: .3rem; }
+.studio-line { color: var(--ink2); font-size: .95rem; }
+.studio-line:empty { display: none; }
+@media (prefers-color-scheme: dark) {
+  .asym { color: #ff9dac; }
+  .asym.lv2 { background: #c8233f; color: #fff; }
+}
+@media print {
+  .labbar, .labnotice { display: none !important; }
+  .asym { color: #000; }
+  .asym.lv2 { background: #000; color: #fff; border: 1px solid #000; }
+  .asym-sec { border-color: #000; }
+  .asym-note, .asym-legend { color: #333; }
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Accosciate e braccia, Movement Lab</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<meta name="theme-color" content="#0d1b2b">
+<meta name="description" content="Gradi in tempo reale e punti di repere per accosciate e arti superiori">
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../suitebar.css">
+</head>
+<body data-platform="pc" data-module="movimento">
+<header class="top no-print">
+  <nav aria-label="Sezioni"><a href="#home" data-nav="home">Esercizi</a><a href="#archivio" data-nav="archivio">Archivio</a><a href="#guida" data-nav="guida">Guida</a></nav>
+  <p id="status" role="status"></p>
+</header>
+
+<main id="home" class="page home">
+  <section class="sessionbar">
+    <label class="grow">Persona <input id="person" list="people" placeholder="Nome e cognome" autocomplete="off"><datalist id="people"></datalist></label>
+    <label class="grow">Note della sessione <input id="notes" autocomplete="off"></label>
+    <div class="done" id="doneSets"></div>
+  </section>
+  <div class="lists">
+    <section><h1>Accosciate</h1><ul class="exlist" id="ex-squat"></ul></section>
+    <section><h1>Arti superiori</h1><ul class="exlist" id="ex-arm"></ul>
+      <h2 class="sub">Altri angoli</h2><ul class="exlist"><li><a href="#capture/custom"><b>Angolo personalizzato</b><span>Tocca tre punti di repere sull’immagine e misura qualsiasi angolo.</span></a></li></ul></section>
+  </div>
+  <details class="settings"><summary>Impostazioni</summary>
+    <div class="fields">
+      <label>Riconoscimento <select id="s_model"><!--MODELS--></select></label>
+      <label>Conto alla rovescia <select id="s_countdown"><option value="0">Nessuno</option><option value="3">3 secondi</option><option value="5">5 secondi</option><option value="10">10 secondi</option></select></label>
+      <label>Durata della serie <select id="s_duration"><option value="0">La termino io</option><option value="15">15 secondi</option><option value="30">30 secondi</option><option value="60">60 secondi</option></select></label>
+      <label>Riproduzione file video <select id="s_rate"><option value="1">Velocità normale</option><option value="0.5">Metà velocità</option><option value="0.25">Un quarto, per slow motion</option></select></label>
+      <label class="check"><input type="checkbox" id="s_record"> Registra il video della serie</label>
+      <label class="check"><input type="checkbox" id="s_keepVideo"> Conserva i video nell’archivio</label>
+      <label class="check"><input type="checkbox" id="s_sound"> Suono a ogni ripetizione</label>
+      <label class="check"><input type="checkbox" id="s_voice"> Conta le ripetizioni a voce</label>
+      <label class="check"><input type="checkbox" id="s_trail"> Mostra la traiettoria</label>
+      <label class="check"><input type="checkbox" id="s_labels"> Mostra i nomi dei punti</label>
+    </div>
+  </details>
+  <div class="install" id="installBox" hidden><p></p><button id="install"></button></div>
+</main>
+
+<main id="archivio" class="page" hidden></main>
+<main id="report" class="page" hidden></main>
+<main id="result" class="page" hidden></main>
+<main id="compare" class="page" hidden></main>
+
+<main id="guida" class="page guide" hidden>
+  <h1>Come riprendere</h1>
+  <p class="lede">I gradi sono calcolati sul piano dell’immagine: valgono se il movimento avviene su quel piano. La posizione della camera conta più di ogni altra cosa.</p>
+  <div class="tablewrap"><table class="metrics"><thead><tr><th>Movimento</th><th>Camera</th><th>Cosa misura bene</th></tr></thead><tbody>
+    <tr><th scope="row">Accosciate, di lato</th><td>Perpendicolare al soggetto, altezza anca</td><td>Ginocchio, anca, tibia, tronco, profondità</td></tr>
+    <tr><th scope="row">Accosciate, di fronte o da dietro</th><td>Centrata, altezza ginocchio o anca</td><td>Ginocchia verso l’interno, simmetria, bacino, spalle</td></tr>
+    <tr><th scope="row">Flessione ed estensione di spalla</th><td>Di lato, altezza spalla</td><td>Braccio vicino alla camera, compenso del tronco</td></tr>
+    <tr><th scope="row">Abduzione di spalla, press</th><td>Davanti o dietro, altezza spalla</td><td>Destra e sinistra insieme, inclinazione di tronco e spalle</td></tr>
+    <tr><th scope="row">Gomito</th><td>Di lato o di fronte, con il braccio sul piano dell’immagine</td><td>Flessione ed eventuale movimento del braccio</td></tr>
+    <tr><th scope="row">Rotazione di spalla a 90°</th><td>Di lato, con il braccio che punta verso la camera</td><td>Stima dell’avambraccio rispetto all’orizzontale</td></tr>
+  </tbody></table></div>
+  <h2>Prima di iniziare</h2>
+  <ol>
+    <li>Metti la camera in bolla, a 2,5-4 metri, e inquadra tutto il corpo. Per le braccia puoi avvicinarla, ma spalle e gomiti devono restare sempre in quadro.</li>
+    <li>Scegli abiti aderenti, luce uniforme e nessun’altra persona nell’inquadratura.</li>
+    <li>Nelle viste frontale e posteriore premi “Calibra” con il soggetto fermo in piedi: il bacino sarà misurato rispetto alla posizione di riposo.</li>
+    <li>Guarda i numeri in alto sull’immagine: se compare un avviso, il soggetto non è orientato come richiede la vista.</li>
+  </ol>
+  <h2>Come leggere i gradi</h2>
+  <ul>
+    <li><b>Flessione:</b> 0° significa segmenti allineati. Il ginocchio esteso vale circa 0°.</li>
+    <li><b>Spalla:</b> 0° braccio lungo il tronco, 90° braccio orizzontale, 180° braccio verso l’alto. L’estensione è negativa.</li>
+    <li><b>Tibia e tronco:</b> inclinazione rispetto alla verticale, positiva in avanti. La camera deve essere in bolla.</li>
+    <li><b>Coscia sull’orizzontale:</b> sotto zero l’anca è più bassa del ginocchio.</li>
+    <li><b>Valgo:</b> in profondità il valore sparisce, perché la coscia punta verso la camera. Resta la misura della tibia vista di fronte.</li>
+  </ul>
+  <h2>Limiti</h2>
+  <ul>
+    <li>Sono stime da video 2D senza marker, adatte a confrontare sessioni riprese allo stesso modo. Non sono misure di laboratorio e non costituiscono una diagnosi.</li>
+    <li>Differenze di pochi gradi tra una sessione e l’altra possono dipendere dalla ripresa.</li>
+    <li>Rotazione di spalla e polso sono stime meno affidabili, perché i punti sono piccoli o sovrapposti.</li>
+    <li>Le traiettorie seguono spalle, polsi o bacino, non la barra.</li>
+    <li>Oggetti che coprono le articolazioni, come dischi o manubri, spostano i punti.</li>
+  </ul>
+  <h2>Lato destro e sinistro</h2>
+  <p>Nelle viste frontale e posteriore il confronto è già nella serie. Nella vista laterale si misura un lato alla volta: riprendi lo stesso esercizio dai due lati, e il referto mette a confronto le due serie.</p>
+  <h2>Velocità</h2>
+  <p>Il valore in fps è sull’immagine. Con il riconoscimento “Veloce” i movimenti lenti restano ben misurati anche a 15-20 fps. Per movimenti rapidi, usa un video già registrato e analizzalo a un quarto di velocità.</p>
+  <h2>Privacy</h2>
+  <p>I video sono elaborati solo su questo dispositivo e non vengono inviati a nessuno. Restano in archivio se scegli di conservarli. Chiedi il consenso alla persona ripresa.</p>
+</main>
+
+<section id="capture" class="capture" hidden>
+  <header class="cap-head">
+    <a class="btn" href="#home">Esercizi</a>
+    <h1 id="capName"></h1>
+    <button id="toolsBtn" class="only-mobile" aria-expanded="false">Opzioni</button>
+    <button id="addCam" class="only-pc">Aggiungi seconda camera</button>
+  </header>
+  <div class="bays one" id="bays"></div>
+  <footer class="cap-foot">
+    <button id="snap">Fissa misura</button>
+    <button id="calib" hidden>Calibra</button>
+    <button id="metro" aria-pressed="false" hidden>Metronomo</button>
+    <button id="go" class="go" disabled>Avvia la serie</button>
+  </footer>
+</section>
+<script type="module" src="../suitebar.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

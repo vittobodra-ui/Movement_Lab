@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Movement Lab</title>
+<meta name="theme-color" content="#0d1b2b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="suite.css">
+<link rel="stylesheet" href="suitebar.css">
+</head>
+<body data-module="home">
+
+<main id="home" class="page">
+  <section class="clientcard" aria-labelledby="clientTitle">
+    <h1 id="clientTitle">Cliente</h1>
+    <form id="clientForm" autocomplete="off">
+      <label class="grow">Nome e cognome <input id="c_name" list="c_people" placeholder="Scrivi o scegli dall’elenco"><datalist id="c_people"></datalist></label>
+      <label>Anno di nascita <input id="c_birth" type="number" inputmode="numeric" min="1900" max="2100"></label>
+      <label>Altezza cm <input id="c_height" type="number" inputmode="numeric" min="50" max="250"></label>
+      <div class="client-actions"><a class="btn" id="openSheet" href="#clienti" hidden>Apri la scheda</a><button type="button" id="newClient" class="quiet">Nuovo cliente</button></div>
+    </form>
+    <p class="fine" id="clientHint"></p>
+  </section>
+
+  <section class="mods" aria-label="Programmi">
+    <a class="mod" href="corsa/"><h2>Corsa</h2><p>Vista laterale, frontale e posteriore in tempo reale: cadenza, tempi, bacino, valgo.</p><span>Webcam, fotocamera o file video</span></a>
+    <a class="mod" href="movimento/"><h2>Accosciate e braccia</h2><p>Gradi e punti di repere dal vivo, ripetizioni, revisione fotogramma per fotogramma.</p><span>Webcam, fotocamera o file video</span></a>
+    <a class="mod" href="stabilometria/"><h2>Stabilometria</h2><p>Carico tra i piedi, centro di pressione, oscillazione a occhi aperti e chiusi.</p><span>Wii Balance Board, esame da PC o tablet Windows</span></a>
+  </section>
+
+  <div class="two">
+    <section><h2>Ultime analisi</h2><div id="recent"></div></section>
+    <section><h2>Controllo del dispositivo</h2><ul class="checks" id="checks"></ul></section>
+  </div>
+  <div class="two">
+    <section id="soglie"><h2>Segnalazione delle asimmetrie</h2>
+      <p class="fine">Un valore viene segnato con <span class="asym lv1">▲</span> se la differenza tra i lati è pari o oltre la soglia, e con <span class="asym lv2">▲▲</span> se è pari o oltre il doppio. I segni restano leggibili nelle stampe in scala di grigi. Lascia vuoto un campo per non segnalare quel tipo di misura.</p>
+      <form id="limits" autocomplete="off"></form>
+      <p class="fine">Sono punti di partenza, non limiti clinici. In <a href="#aiuto">Aiuto</a> trovi da dove vengono.</p>
+      <button type="button" id="resetLimits" class="quiet">Ripristina i valori iniziali</button>
+      <details class="wheel-limits" id="soglieruota"><summary>Soglie della ruota della corsa</summary>
+        <p class="fine">Decidono quali errori vengono segnati sulla ruota nel report della corsa. Lascia vuoto un campo per non segnalare quella voce.</p>
+        <form id="wheelLimits" autocomplete="off"></form>
+        <button type="button" id="resetWheelLimits" class="quiet">Ripristina i valori iniziali</button>
+      </details>
+    </section>
+    <section id="backup"><h2>Copia di sicurezza</h2>
+      <p id="backupState"></p>
+      <div class="btnrow"><button type="button" id="exportAll" class="primary">Salva tutto in un file</button><label class="btn">Importa da file<input id="importFile" type="file" accept="application/json,.json" hidden></label></div>
+      <p class="fine" id="backupMsg" role="status"></p>
+      <p class="fine">Il file contiene clienti e risultati di tutti e tre i programmi, ma non i video. Puoi importare anche i file esportati dalle singole app che usavi prima.</p>
+      <h2 class="sub">Studio</h2>
+      <label>Nome dello studio, stampato sui report <input id="studioName" autocomplete="off"></label>
+    </section>
+  </div>
+</main>
+
+<main id="clienti" class="page" hidden></main>
+<main id="cliente" class="page" hidden></main>
+
+<main id="aiuto" class="page guide" hidden>
+  <h1>Aiuto</h1>
+  <h2>Come si usa</h2>
+  <ol>
+    <li>Nella pagina principale scegli o scrivi il cliente: il nome passa da solo a tutti i programmi.</li>
+    <li>Apri il programma che ti serve con la barra in alto. Puoi passare da uno all’altro quando vuoi, ma non durante una prova.</li>
+    <li>Ogni programma salva il proprio report. In <a href="#clienti">Clienti</a> trovi tutto ciò che riguarda una persona, in un’unica scheda stampabile.</li>
+  </ol>
+  <h2>Dove restano i dati</h2>
+  <ul>
+    <li>Risultati e video restano nel browser del dispositivo che stai usando. Non vengono inviati a nessuno, nemmeno se apri il programma da GitHub.</li>
+    <li>Usa sempre lo stesso browser: Chrome ed Edge hanno archivi separati. Il programma apre Chrome se c’è, altrimenti Edge.</li>
+    <li>Se cancelli i dati di navigazione del browser, puoi perdere l’archivio. Salva regolarmente la copia di sicurezza.</li>
+    <li>Chiedi il consenso alle persone riprese e conserva con cura i file esportati.</li>
+  </ul>
+  <h2>Dal telefono</h2>
+  <ul>
+    <li><b>Installarla:</b> su Android, con Chrome, premi “Installa l’app” nella barra in alto o apri il menu e scegli “Aggiungi a schermata Home”. Su iPhone, con Safari, premi Condividi e poi “Aggiungi alla schermata Home”.</li>
+    <li><b>Corsa:</b> dal telefono riprendi una vista alla volta, con la stessa ruota e le stesse segnalazioni nel report.</li>
+    <li><b>Accosciate e braccia:</b> funziona con una fotocamera alla volta.</li>
+    <li><b>Stabilometria:</b> il telefono non può collegarsi alla pedana. Puoi vedere i report importati e provare la simulazione.</li>
+    <li><b>Prima apertura:</b> serve Internet per scaricare il riconoscimento della posa. Poi funziona anche senza rete.</li>
+    <li><b>Telefono e PC hanno archivi separati:</b> per spostare le analisi salva la copia di sicurezza su un dispositivo e importala sull’altro. I video non vengono copiati.</li>
+  </ul>
+  <h2>Portare qui i dati delle app precedenti</h2>
+  <p>Le app separate hanno un loro archivio, che questo programma non vede. Apri la vecchia app, vai in Archivio e premi “Esporta in un file”. Poi nella pagina principale di questo programma premi “Importa da file”.</p>
+  <h2>Perché queste soglie</h2>
+  <p>Non esiste un valore che separi con certezza una differenza normale da una da trattare. Per questo le soglie sono modificabili e vanno lette insieme alla persona, confrontando le sessioni nel tempo.</p>
+  <ul>
+    <li><b>Angoli piccoli, 3°:</b> poco sopra la minima differenza rilevabile di 2,7-2,8° riportata per la caduta del bacino con video 2D durante la corsa (Dingenen 2018). Sotto questo valore la differenza può dipendere dalla misura.</li>
+    <li><b>Angoli ampi, 10°:</b> scelta prudente, sopra la variazione minima di 5,5-8,3° riportata per la flessione di spalla misurata su fotografia (Beshara 2022).</li>
+    <li><b>Tempi e percentuali, 10%:</b> la convenzione più usata va dal 10 al 15%, ma riguarda soprattutto forza e salti e una revisione sistematica la giudica arbitraria (Parkinson 2021).</li>
+    <li><b>Carico tra i piedi, 10 punti:</b> scelta pratica. Nei giovani sani fermi in piedi differenze superiori sono frequenti e gli autori non hanno definito una soglia di normalità (Stodółka 2017).</li>
+    <li><b>Oscillazione su un piede, 25%:</b> scelta pratica di questo programma, senza un riferimento specifico. Il percorso varia parecchio da una prova all’altra: ripeti la prova prima di trarre conclusioni.</li>
+  </ul>
+  <p>Bacino e spalle dipendono anche dalla camera in bolla, e il carico tra i piedi dalla loro posizione sulla pedana. Controlla la ripresa prima di dare peso a una segnalazione.</p>
+  <h2>La ruota della corsa</h2>
+  <p>Nel report della corsa trovi il ciclo del passo con le figure medie della persona, un riferimento schematico e gli errori numerati. Il riferimento è un disegno costruito su valori tipici: serve a orientare l’occhio e non è un modello da copiare.</p>
+  <ul>
+    <li><b>Si misurano:</b> piede troppo avanti, cadenza, oscillazione verticale, inclinazione del busto, valgo.</li>
+    <li><b>Si stimano, da controllare sul video:</b> atterraggio sul tallone, corsa sulle punte, mani oltre la linea centrale. Il modello segue solo tallone, punta e polso, e da dietro il busto può coprire la mano.</li>
+    <li><b>Non si misurano:</b> pronazione, supinazione e spalle contratte. Le segni tu nel report e sulla ruota compaiono con un rombo. L’impatto “violento” non si misura: il video non dà la forza a terra.</li>
+  </ul>
+  <p>Da dove vengono le soglie iniziali, tutte modificabili:</p>
+  <ul>
+    <li><b>Piede avanti, 30% della gamba:</b> scelta pratica. Non ho trovato valori pubblicati in questa unità, ma più il piede atterra avanti, più cresce la frenata (Lieberman 2015).</li>
+    <li><b>Ginocchio al contatto, sotto 6°:</b> la media di un gruppo di runner infortunati, contro 10° dei sani (Bramah 2018). Il programma misura quando il tallone è più avanti, poco prima del contatto, quindi può leggere più basso.</li>
+    <li><b>Piede al contatto, oltre 8°, e sulle punte, sotto −8°:</b> scelte pratiche, per separare un appoggio chiaramente di tallone o di punta da uno quasi piatto.</li>
+    <li><b>Cadenza:</b> 10 passi sotto il valore atteso per velocità, età e altezza (Malisoux 2023), circa una deviazione standard. Senza velocità o altezza, sotto 155.</li>
+    <li><b>Oscillazione, 13% della gamba:</b> scelta pratica, sopra il 10% circa calcolato da uno studio (Heiderscheit 2011).</li>
+    <li><b>Busto, oltre 15° in avanti:</b> circa due deviazioni standard sopra la media dei sani (Bramah 2018). <b>Indietro:</b> sotto 0°.</li>
+    <li><b>Valgo, oltre 10°:</b> circa due deviazioni standard sopra la media di runner senza dolore (de Vasconcelos 2022).</li>
+    <li><b>Mano oltre la linea centrale, 3% della gamba:</b> scelta pratica. Non ho trovato una soglia pubblicata.</li>
+  </ul>
+  <p>Conviene riprendere alcuni runner sani con la stessa installazione e regolare le soglie sui valori che ottieni: queste misure non sono ancora state confrontate con un laboratorio.</p>
+  <h2>Fonti</h2>
+  <ul class="fine">
+    <li>Lieberman et al., <a href="https://cob.silverchair.com/jeb/article/218/21/3406/14416/Effects-of-stride-frequency-and-foot-position-at">J. Exp. Biol. 2015</a>.</li>
+    <li>Bramah et al., <a href="https://doi.org/10.1177/0363546518793657">Am. J. Sports Med. 2018</a>.</li>
+    <li>Malisoux et al., <a href="https://doi.org/10.1177/23259671231204629">Orthop. J. Sports Med. 2023</a>.</li>
+    <li>Heiderscheit et al., <a href="https://doi.org/10.1249/MSS.0b013e3181ebedf4">Med. Sci. Sports Exerc. 2011</a>.</li>
+    <li>de Vasconcelos et al., <a href="https://doi.org/10.3390/clinpract12030047">Clin. Pract. 2022</a>.</li>
+    <li>Dingenen et al., <a href="https://doi.org/10.1016/j.ptsp.2018.06.009">Physical Therapy in Sport 2018</a>.</li>
+    <li>Beshara et al., <a href="https://doi.org/10.3390/ijerph192114442">Int. J. Environ. Res. Public Health 2022</a>.</li>
+    <li>Parkinson et al., <a href="https://doi.org/10.52082/jssm.2021.594">J. Sports Sci. Med. 2021</a>.</li>
+    <li>Stodółka e Sobera, <a href="https://doi.org/10.5277/ABB-00712-2016-02">Acta Bioeng. Biomech. 2017</a>.</li>
+  </ul>
+</main>
+
+<script type="module" src="suitebar.js"></script>
+<script type="module" src="suite.js"></script>
+</body>
+</html>
