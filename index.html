@@ -2,123 +2,135 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Corsa, Movement Lab</title>
-<link rel="icon" href="../icon-192.png">
-<link rel="manifest" href="../manifest.webmanifest">
-<link rel="apple-touch-icon" href="../icon-192.png">
-<script>if ((navigator.userAgentData && navigator.userAgentData.mobile) || /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))) location.replace("telefono.html" + location.hash);</script>
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="../suitebar.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Movement Lab</title>
+<meta name="theme-color" content="#0d1b2b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="suite.css">
+<link rel="stylesheet" href="suitebar.css">
 </head>
-<body data-module="corsa">
-<header class="top no-print">
-  <nav aria-label="Sezioni"><a href="#live" data-nav="live">Sessione</a><a href="#archivio" data-nav="archivio">Archivio</a><a href="#guida" data-nav="guida">Installazione camere</a></nav>
-  <p id="status" role="status"></p>
-</header>
+<body data-module="home">
 
-<main id="live" class="page">
-  <form class="session" id="sessionForm" autocomplete="off">
-    <label class="grow">Persona <input id="person" list="people" placeholder="Nome e cognome"><datalist id="people"></datalist></label>
-    <label>Altezza cm <input id="height" type="number" min="100" max="230" inputmode="numeric"></label>
-    <label>km/h <input id="speed" type="number" step="0.1" min="0" inputmode="decimal"></label>
-    <label>Pendenza % <input id="incline" type="number" step="0.5" inputmode="decimal"></label>
-    <label>Scarpe <input id="shoes"></label>
-    <label class="grow">Note <input id="notes"></label>
-  </form>
-  <div class="controls">
-    <button id="start" class="primary" disabled>Avvia sessione</button>
-    <span id="clock" class="clock" hidden>0:00</span>
-    <button id="calibrate" disabled title="La persona resta ferma in piedi per 3 secondi davanti alle camere frontale o posteriore">Calibra in piedi</button>
-    <button id="runnerBtn">Schermo corridore</button>
-    <button id="metro" aria-pressed="false">Metronomo</button>
-    <button id="goalsBtn" aria-expanded="false" aria-controls="goals">Obiettivi e impostazioni</button>
-    <button id="demo" class="quiet">Prova con dati simulati</button>
+<main id="home" class="page">
+  <section class="clientcard" aria-labelledby="clientTitle">
+    <h1 id="clientTitle">Cliente</h1>
+    <form id="clientForm" autocomplete="off">
+      <label class="grow">Nome e cognome <input id="c_name" list="c_people" placeholder="Scrivi o scegli dall’elenco"><datalist id="c_people"></datalist></label>
+      <label>Anno di nascita <input id="c_birth" type="number" inputmode="numeric" min="1900" max="2100"></label>
+      <label>Altezza cm <input id="c_height" type="number" inputmode="numeric" min="50" max="250"></label>
+      <div class="client-actions"><a class="btn" id="openSheet" href="#clienti" hidden>Apri la scheda</a><button type="button" id="newClient" class="quiet">Nuovo cliente</button></div>
+    </form>
+    <p class="fine" id="clientHint"></p>
+  </section>
+
+  <section class="mods" aria-label="Programmi">
+    <a class="mod" href="corsa.html"><h2>Corsa</h2><p>Vista laterale, frontale e posteriore in tempo reale: cadenza, tempi, bacino, valgo.</p><span>Webcam, fotocamera o file video</span></a>
+    <a class="mod" href="movimento.html"><h2>Accosciate e braccia</h2><p>Gradi e punti di repere dal vivo, ripetizioni, revisione fotogramma per fotogramma.</p><span>Webcam, fotocamera o file video</span></a>
+    <a class="mod" href="stabilometria.html"><h2>Stabilometria</h2><p>Carico tra i piedi, centro di pressione, oscillazione a occhi aperti e chiusi.</p><span>Wii Balance Board, esame da PC o tablet Windows</span></a>
+  </section>
+
+  <div class="two">
+    <section><h2>Ultime analisi</h2><div id="recent"></div></section>
+    <section><h2>Controllo del dispositivo</h2><ul class="checks" id="checks"></ul></section>
   </div>
-  <section id="goals" class="goals" hidden aria-label="Obiettivi e impostazioni">
-    <p class="fine">Le soglie sono facoltative e le decidi tu in base alla persona. Una misura fuori soglia viene segnalata durante la corsa.</p>
-    <div class="goal-fields">
-      <label>Cadenza minima <input id="g_cadMin" type="number"></label>
-      <label>Cadenza massima <input id="g_cadMax" type="number"></label>
-      <label>Metronomo, passi/min <input id="g_metro" type="number" value="170"></label>
-      <label>Caduta bacino massima ° <input id="g_drop" type="number" step="0.5"></label>
-      <label>Valgo massimo ° <input id="g_valgus" type="number" step="0.5"></label>
-      <label>Tallone avanti massimo, % gamba <input id="g_over" type="number" step="1"></label>
-      <label>Riconoscimento <select id="g_model"><option value="full">Preciso</option><option value="lite">Veloce, per PC meno potenti</option></select></label>
-      <label>Riproduzione file video <select id="g_rate"><option value="1">Velocità normale</option><option value="0.5">Metà velocità</option><option value="0.25">Un quarto, per video a 120 fps o più</option></select></label>
-    </div>
-  </section>
-
-  <div class="bays" id="bays"></div>
-  <section class="ribbon-wrap" aria-label="Appoggi degli ultimi 8 secondi">
-    <h2>Appoggi <span class="fine">ultimi 8 secondi, <i class="sw l"></i>sinistro <i class="sw r"></i>destro <i class="sw n1"></i>non assegnato</span></h2>
-    <canvas id="ribbon" height="64"></canvas>
-  </section>
+  <div class="two">
+    <section id="soglie"><h2>Segnalazione delle asimmetrie</h2>
+      <p class="fine">Un valore viene segnato con <span class="asym lv1">▲</span> se la differenza tra i lati è pari o oltre la soglia, e con <span class="asym lv2">▲▲</span> se è pari o oltre il doppio. I segni restano leggibili nelle stampe in scala di grigi. Lascia vuoto un campo per non segnalare quel tipo di misura.</p>
+      <form id="limits" autocomplete="off"></form>
+      <p class="fine">Sono punti di partenza, non limiti clinici. In <a href="#aiuto">Aiuto</a> trovi da dove vengono.</p>
+      <button type="button" id="resetLimits" class="quiet">Ripristina i valori iniziali</button>
+      <details class="wheel-limits" id="soglieruota"><summary>Soglie della ruota della corsa</summary>
+        <p class="fine">Decidono quali errori vengono segnati sulla ruota nel report della corsa. Lascia vuoto un campo per non segnalare quella voce.</p>
+        <form id="wheelLimits" autocomplete="off"></form>
+        <button type="button" id="resetWheelLimits" class="quiet">Ripristina i valori iniziali</button>
+      </details>
+    </section>
+    <section id="backup"><h2>Copia di sicurezza</h2>
+      <p id="backupState"></p>
+      <div class="btnrow"><button type="button" id="exportAll" class="primary">Salva tutto in un file</button><label class="btn">Importa da file<input id="importFile" type="file" accept="application/json,.json" hidden></label></div>
+      <p class="fine" id="backupMsg" role="status"></p>
+      <p class="fine">Il file contiene clienti e risultati di tutti e tre i programmi, ma non i video. Puoi importare anche i file esportati dalle singole app che usavi prima.</p>
+      <h2 class="sub">Studio</h2>
+      <label>Nome dello studio, stampato sui report <input id="studioName" autocomplete="off"></label>
+    </section>
+  </div>
 </main>
 
-<main id="archivio" class="page" hidden></main>
-<main id="report" class="page" hidden></main>
+<main id="clienti" class="page" hidden></main>
+<main id="cliente" class="page" hidden></main>
 
-<main id="guida" class="page guide" hidden>
-  <h1>Come piazzare le camere</h1>
-  <p class="lede">La qualità dei numeri dipende soprattutto dalla ripresa. Conviene rifarla sempre uguale, così le sessioni restano confrontabili.</p>
-  <svg class="plan" viewBox="0 0 720 300" role="img" aria-label="Pianta dall'alto: tapis roulant al centro, camera frontale davanti, posteriore dietro, laterale di fianco a circa 3 metri">
-    <rect x="240" y="95" width="240" height="66" rx="6" class="belt"/><text x="360" y="133" text-anchor="middle">tapis roulant</text>
-    <path d="M360 128 h0" />
-    <g class="cam"><rect x="60" y="112" width="34" height="30" rx="4"/><text x="77" y="96" text-anchor="middle">Frontale</text></g>
-    <g class="cam"><rect x="626" y="112" width="34" height="30" rx="4"/><text x="643" y="96" text-anchor="middle">Posteriore</text></g>
-    <g class="cam"><rect x="343" y="250" width="34" height="30" rx="4"/><text x="430" y="271" text-anchor="middle">Laterale</text></g>
-    <line x1="100" y1="128" x2="234" y2="128" class="dim"/><text x="167" y="120" text-anchor="middle" class="small">3-4 m</text>
-    <line x1="486" y1="128" x2="620" y2="128" class="dim"/><text x="553" y="120" text-anchor="middle" class="small">3-4 m</text>
-    <line x1="360" y1="167" x2="360" y2="244" class="dim"/><text x="372" y="210" class="small">3 m</text>
-    <path d="M300 128 l-26 0 m8 -7 l-8 7 l8 7" class="dir"/><text x="360" y="84" text-anchor="middle" class="small">direzione di corsa: verso la camera frontale</text>
-  </svg>
-  <h2>Attrezzatura consigliata</h2>
-  <ul>
-    <li><b>Tre webcam USB uguali che dichiarano 720p a 60 fotogrammi al secondo.</b> Stesso modello significa stessa ottica e stessi colori. La Logitech C922 è un esempio con queste specifiche.</li>
-    <li><b>Tre treppiedi</b>, meglio con livella, e una prolunga USB attiva se il computer è lontano.</li>
-    <li><b>Una presa USB per camera, su lati diversi del PC.</b> Più webcam sullo stesso hub spesso non si avviano insieme.</li>
-    <li><b>Telefono che registra a 120 o 240 fps</b> se ti serve il tempo di contatto più affidabile. Carichi il file come sorgente e lo fai analizzare a velocità ridotta.</li>
-  </ul>
-  <h2>Ripresa</h2>
+<main id="aiuto" class="page guide" hidden>
+  <h1>Aiuto</h1>
+  <h2>Come si usa</h2>
   <ol>
-    <li>Metti ogni camera in bolla, con l’obiettivo all’altezza dell’anca o poco sotto.</li>
-    <li>Inquadra tutto il corpo con margine sopra la testa e sotto i piedi, anche nel punto più alto del passo.</li>
-    <li>Tieni la camera laterale perpendicolare al nastro, centrata sul punto in cui la persona corre.</li>
-    <li>Controlla che il cruscotto del tapis roulant non copra le gambe nella vista frontale. Se le copre, sposta la camera più in basso o usa la vista posteriore.</li>
-    <li>Illumina in modo uniforme, senza finestre alle spalle della persona. A 60 fps servono luce e tempi di posa brevi, altrimenti i piedi risultano mossi.</li>
-    <li>Fai indossare pantaloncini e calze che si distinguono dal nastro e dallo sfondo.</li>
-    <li>Fai calibrare in piedi per 3 secondi prima di ogni sessione, così il bacino viene misurato rispetto alla posizione di riposo.</li>
-    <li>Lascia correre la persona almeno un minuto prima di avviare la sessione.</li>
+    <li>Nella pagina principale scegli o scrivi il cliente: il nome passa da solo a tutti i programmi.</li>
+    <li>Apri il programma che ti serve con la barra in alto. Puoi passare da uno all’altro quando vuoi, ma non durante una prova.</li>
+    <li>Ogni programma salva il proprio report. In <a href="#clienti">Clienti</a> trovi tutto ciò che riguarda una persona, in un’unica scheda stampabile.</li>
   </ol>
-  <h2>Quanto fidarsi delle misure</h2>
+  <h2>Dove restano i dati</h2>
   <ul>
-    <li><b>Più affidabili:</b> cadenza e tempo del passo.</li>
-    <li><b>Buone per confrontare le sessioni:</b> tallone avanti al bacino, angoli di ginocchio e tibia, tronco, oscillazione, caduta del bacino, valgo, larghezza del passo.</li>
-    <li><b>Da leggere con cautela:</b> tempi di contatto e volo. Dipendono dai fotogrammi al secondo: a 60 fps ogni istante ha almeno ±17 ms di tolleranza, su un contatto di circa 250 ms. Nei test su un corridore simulato il contatto risulta circa 20 ms più lungo del vero.</li>
-    <li><b>Stime da controllare a occhio:</b> angolo del piede al contatto e appoggio sulle punte. Il modello segue solo tallone e punta.</li>
-    <li><b>Non misurate:</b> pronazione e supinazione, cioè il movimento del retropiede. Il modello non segue abbastanza punti del piede: le segni tu nel report, guardando la ripresa.</li>
+    <li>Risultati e video restano nel browser del dispositivo che stai usando. Non vengono inviati a nessuno, nemmeno se apri il programma da GitHub.</li>
+    <li>Usa sempre lo stesso browser: Chrome ed Edge hanno archivi separati. Il programma apre Chrome se c’è, altrimenti Edge.</li>
+    <li>Se cancelli i dati di navigazione del browser, puoi perdere l’archivio. Salva regolarmente la copia di sicurezza.</li>
+    <li>Chiedi il consenso alle persone riprese e conserva con cura i file esportati.</li>
   </ul>
+  <h2>Dal telefono</h2>
+  <ul>
+    <li><b>Installarla:</b> su Android, con Chrome, premi “Installa l’app” nella barra in alto o apri il menu e scegli “Aggiungi a schermata Home”. Su iPhone, con Safari, premi Condividi e poi “Aggiungi alla schermata Home”.</li>
+    <li><b>Corsa:</b> dal telefono riprendi una vista alla volta, con la stessa ruota e le stesse segnalazioni nel report.</li>
+    <li><b>Accosciate e braccia:</b> funziona con una fotocamera alla volta.</li>
+    <li><b>Stabilometria:</b> il telefono non può collegarsi alla pedana. Puoi vedere i report importati e provare la simulazione.</li>
+    <li><b>Prima apertura:</b> serve Internet per scaricare il riconoscimento della posa. Poi funziona anche senza rete.</li>
+    <li><b>Telefono e PC hanno archivi separati:</b> per spostare le analisi salva la copia di sicurezza su un dispositivo e importala sull’altro. I video non vengono copiati.</li>
+  </ul>
+  <h2>Portare qui i dati delle app precedenti</h2>
+  <p>Le app separate hanno un loro archivio, che questo programma non vede. Apri la vecchia app, vai in Archivio e premi “Esporta in un file”. Poi nella pagina principale di questo programma premi “Importa da file”.</p>
+  <h2>Perché queste soglie</h2>
+  <p>Non esiste un valore che separi con certezza una differenza normale da una da trattare. Per questo le soglie sono modificabili e vanno lette insieme alla persona, confrontando le sessioni nel tempo.</p>
+  <ul>
+    <li><b>Angoli piccoli, 3°:</b> poco sopra la minima differenza rilevabile di 2,7-2,8° riportata per la caduta del bacino con video 2D durante la corsa (Dingenen 2018). Sotto questo valore la differenza può dipendere dalla misura.</li>
+    <li><b>Angoli ampi, 10°:</b> scelta prudente, sopra la variazione minima di 5,5-8,3° riportata per la flessione di spalla misurata su fotografia (Beshara 2022).</li>
+    <li><b>Tempi e percentuali, 10%:</b> la convenzione più usata va dal 10 al 15%, ma riguarda soprattutto forza e salti e una revisione sistematica la giudica arbitraria (Parkinson 2021).</li>
+    <li><b>Carico tra i piedi, 10 punti:</b> scelta pratica. Nei giovani sani fermi in piedi differenze superiori sono frequenti e gli autori non hanno definito una soglia di normalità (Stodółka 2017).</li>
+    <li><b>Oscillazione su un piede, 25%:</b> scelta pratica di questo programma, senza un riferimento specifico. Il percorso varia parecchio da una prova all’altra: ripeti la prova prima di trarre conclusioni.</li>
+  </ul>
+  <p>Bacino e spalle dipendono anche dalla camera in bolla, e il carico tra i piedi dalla loro posizione sulla pedana. Controlla la ripresa prima di dare peso a una segnalazione.</p>
   <h2>La ruota della corsa</h2>
-  <p>Nel report trovi la ruota: il ciclo del passo con le figure medie della persona, il riferimento schematico e gli errori numerati. Per ottenere il percorso medio del piede serve la vista laterale, per ginocchia e braccia la vista frontale o posteriore.</p>
-  <h2>Velocità</h2>
-  <p>Ogni camera in più divide i fotogrammi analizzati. Sotto 15 al secondo il programma avvisa: tempi di contatto e di volo diventano poco affidabili. In quel caso usa una o due camere, scegli il riconoscimento “Veloce”, oppure registra i video e caricali come file, analizzandoli a velocità ridotta.</p>
-  <p>Nel PC con scheda grafica dedicata, se i fotogrammi analizzati restano bassi, imposta Chrome o Edge su “Prestazioni elevate” in Impostazioni di Windows, Schermo, Grafica.</p>
-  <p class="fine">I video vengono elaborati solo su questo computer e non vengono salvati. Nel referto restano numeri e pochi fotogrammi di esempio: chiedi il consenso alla persona ripresa.</p>
+  <p>Nel report della corsa trovi il ciclo del passo con le figure medie della persona, un riferimento schematico e gli errori numerati. Il riferimento è un disegno costruito su valori tipici: serve a orientare l’occhio e non è un modello da copiare.</p>
+  <ul>
+    <li><b>Si misurano:</b> piede troppo avanti, cadenza, oscillazione verticale, inclinazione del busto, valgo.</li>
+    <li><b>Si stimano, da controllare sul video:</b> atterraggio sul tallone, corsa sulle punte, mani oltre la linea centrale. Il modello segue solo tallone, punta e polso, e da dietro il busto può coprire la mano.</li>
+    <li><b>Non si misurano:</b> pronazione, supinazione e spalle contratte. Le segni tu nel report e sulla ruota compaiono con un rombo. L’impatto “violento” non si misura: il video non dà la forza a terra.</li>
+  </ul>
+  <p>Da dove vengono le soglie iniziali, tutte modificabili:</p>
+  <ul>
+    <li><b>Piede avanti, 30% della gamba:</b> scelta pratica. Non ho trovato valori pubblicati in questa unità, ma più il piede atterra avanti, più cresce la frenata (Lieberman 2015).</li>
+    <li><b>Ginocchio al contatto, sotto 6°:</b> la media di un gruppo di runner infortunati, contro 10° dei sani (Bramah 2018). Il programma misura quando il tallone è più avanti, poco prima del contatto, quindi può leggere più basso.</li>
+    <li><b>Piede al contatto, oltre 8°, e sulle punte, sotto −8°:</b> scelte pratiche, per separare un appoggio chiaramente di tallone o di punta da uno quasi piatto.</li>
+    <li><b>Cadenza:</b> 10 passi sotto il valore atteso per velocità, età e altezza (Malisoux 2023), circa una deviazione standard. Senza velocità o altezza, sotto 155.</li>
+    <li><b>Oscillazione, 13% della gamba:</b> scelta pratica, sopra il 10% circa calcolato da uno studio (Heiderscheit 2011).</li>
+    <li><b>Busto, oltre 15° in avanti:</b> circa due deviazioni standard sopra la media dei sani (Bramah 2018). <b>Indietro:</b> sotto 0°.</li>
+    <li><b>Valgo, oltre 10°:</b> circa due deviazioni standard sopra la media di runner senza dolore (de Vasconcelos 2022).</li>
+    <li><b>Mano oltre la linea centrale, 3% della gamba:</b> scelta pratica. Non ho trovato una soglia pubblicata.</li>
+  </ul>
+  <p>Conviene riprendere alcuni runner sani con la stessa installazione e regolare le soglie sui valori che ottieni: queste misure non sono ancora state confrontate con un laboratorio.</p>
+  <h2>Fonti</h2>
+  <ul class="fine">
+    <li>Lieberman et al., <a href="https://cob.silverchair.com/jeb/article/218/21/3406/14416/Effects-of-stride-frequency-and-foot-position-at">J. Exp. Biol. 2015</a>.</li>
+    <li>Bramah et al., <a href="https://doi.org/10.1177/0363546518793657">Am. J. Sports Med. 2018</a>.</li>
+    <li>Malisoux et al., <a href="https://doi.org/10.1177/23259671231204629">Orthop. J. Sports Med. 2023</a>.</li>
+    <li>Heiderscheit et al., <a href="https://doi.org/10.1249/MSS.0b013e3181ebedf4">Med. Sci. Sports Exerc. 2011</a>.</li>
+    <li>de Vasconcelos et al., <a href="https://doi.org/10.3390/clinpract12030047">Clin. Pract. 2022</a>.</li>
+    <li>Dingenen et al., <a href="https://doi.org/10.1016/j.ptsp.2018.06.009">Physical Therapy in Sport 2018</a>.</li>
+    <li>Beshara et al., <a href="https://doi.org/10.3390/ijerph192114442">Int. J. Environ. Res. Public Health 2022</a>.</li>
+    <li>Parkinson et al., <a href="https://doi.org/10.52082/jssm.2021.594">J. Sports Sci. Med. 2021</a>.</li>
+    <li>Stodółka e Sobera, <a href="https://doi.org/10.5277/ABB-00712-2016-02">Acta Bioeng. Biomech. 2017</a>.</li>
+  </ul>
 </main>
 
-<div id="runner" class="runner" hidden>
-  <button id="runnerClose" class="runner-close">Chiudi</button>
-  <div class="r-main"><div id="rCad" class="r-cad">–</div><div class="r-unit">passi al minuto <span id="rCadHint"></span></div></div>
-  <div class="r-side">
-    <div class="r-m"><span>Caduta bacino <i id="rDropA" class="r-asym"></i></span><div class="r-pair"><b id="rDropL" class="ink-l">–</b><b id="rDropR" class="ink-r">–</b></div><small>sinistra, destra</small></div>
-    <div class="r-m"><span>Valgo ginocchio <i id="rValA" class="r-asym"></i></span><div class="r-pair"><b id="rValL" class="ink-l">–</b><b id="rValR" class="ink-r">–</b></div><small>sinistra, destra</small></div>
-    <div class="r-m"><span>Tallone avanti</span><div class="r-pair"><b id="rOver">–</b></div><small>% gamba</small></div>
-  </div>
-  <canvas id="ribbon2" height="110"></canvas>
-</div>
-
-<script type="module" src="../suitebar.js"></script>
-<script type="module" src="main.js"></script>
+<script type="module" src="suitebar.js"></script>
+<script type="module" src="suite.js"></script>
 </body>
 </html>

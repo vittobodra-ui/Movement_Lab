@@ -25,7 +25,7 @@ function buildBar() {
   const bar = document.createElement('div');
   bar.className = 'labbar no-print';
   bar.innerHTML = `<a class="labname" href="${base}#home">Movement Lab</a>
-    <nav aria-label="Programmi">${link('corsa/', 'Corsa', 'corsa')}${link('movimento/', 'Accosciate e braccia', 'movimento')}${link('stabilometria/', 'Stabilometria', 'stabilometria')}${link('#clienti', 'Clienti', 'clienti')}${link('#aiuto', 'Aiuto', 'aiuto')}</nav>
+    <nav aria-label="Programmi">${link('corsa.html', 'Corsa', 'corsa')}${link('movimento.html', 'Accosciate e braccia', 'movimento')}${link('stabilometria.html', 'Stabilometria', 'stabilometria')}${link('#clienti', 'Clienti', 'clienti')}${link('#aiuto', 'Aiuto', 'aiuto')}</nav>
     <span class="labclient" id="labClient"></span><button type="button" class="labinstall" id="labInstall" hidden>Installa l’app</button>`;
   document.body.prepend(bar);
   if (isWeb) {

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stabilometria, Movement Lab</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0d1b2b">
+<meta name="description" content="Stabilometria con Wii Balance Board: carico, centro di pressione e report per i clienti">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="stabilometria-styles.css">
+<link rel="stylesheet" href="suitebar.css">
+</head>
+<body data-module="stabilometria">
+<header class="top no-print">
+  <nav aria-label="Sezioni"><a href="#esame" data-nav="esame">Esame</a><a href="#archivio" data-nav="archivio">Archivio</a><a href="#guida" data-nav="guida">Guida</a></nav>
+  <p id="pill" class="pill" role="status">Pedana non collegata</p>
+</header>
+
+<main id="esame" class="page">
+  <p id="noHid" class="note" hidden></p>
+  <div class="ex-grid">
+    <div class="col">
+      <section><h2>Cliente</h2>
+        <label>Nome e cognome <input id="c_name" list="clients" autocomplete="off"><datalist id="clients"></datalist></label>
+        <div class="two"><label>Anno di nascita <input id="c_birth" type="number" inputmode="numeric"></label><label>Altezza cm <input id="c_height" type="number" inputmode="numeric"></label></div>
+      </section>
+      <section><h2>Pedana</h2>
+        <div class="btns"><button id="connect" class="primary">Collega la pedana</button><button id="simBtn">Prova senza pedana</button></div>
+        <div class="btns"><button id="tareBtn" disabled>Azzera a vuoto</button><button id="rotBtn" disabled aria-pressed="false">Pedana girata</button></div>
+        <p class="fine" id="boardInfo">Accendi la pedana con il tasto frontale. La prima volta va abbinata a Windows: trovi i passaggi nella Guida.</p>
+        <details class="log"><summary>Dettagli del collegamento</summary><ol id="log"></ol></details>
+      </section>
+      <section><h2>Posizione dei piedi</h2>
+        <div class="two"><label>Distanza tra i piedi, cm <input id="stance" type="number" value="20" inputmode="decimal"></label><label>Lunghezza piede, cm <input id="footLen" type="number" value="26" inputmode="decimal"></label></div>
+        <button id="findBtn" disabled>Trova i piedi con il cliente</button>
+        <p class="fine" id="placeInfo">Da misure inserite: piedi centrati sulla pedana. Per una stima migliore, usa “Trova i piedi”.</p>
+      </section>
+    </div>
+    <div class="center">
+      <div class="plate"><div id="plate"></div><div class="overlay" id="overlay" hidden><div id="ovBig"></div><div id="ovSmall"></div></div></div>
+      <div class="bars">
+        <div class="stat"><b id="weight">–</b><span>kg</span></div>
+        <div class="bar"><div class="barlab"><span>Sinistro <b id="lPct">–</b> <i id="lMark"></i></span><span><i id="rMark"></i> Destro <b id="rPct">–</b></span></div><div class="track"><i id="lBar" class="l"></i><i id="rBar" class="r"></i><em></em></div></div>
+        <div class="bar"><div class="barlab"><span>Retropiede <b id="bPct">–</b></span><span>Avampiede <b id="fPct">–</b></span></div><div class="track"><i id="bBar" class="n"></i><i id="fBar" class="m"></i><em></em></div></div>
+      </div>
+    </div>
+    <div class="col">
+      <section><h2>Prove</h2>
+        <label>Durata <select id="dur"><option value="20">20 secondi</option><option value="30" selected>30 secondi</option><option value="60">60 secondi</option></select></label>
+        <ul class="tests" id="tests"></ul>
+        <button id="stopBtn" class="stop" hidden>Interrompi la prova</button>
+      </section>
+      <section><h2>Risultati</h2><div id="done" class="fine">Le prove concluse compariranno qui.</div>
+        <div class="btns"><button id="reportBtn" class="primary" disabled>Crea il report</button><button id="newBtn" class="quiet" hidden>Nuovo esame</button></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<main id="report" class="page" hidden></main>
+<main id="archivio" class="page" hidden></main>
+
+<main id="guida" class="page guide" hidden>
+  <h1>Guida</h1>
+  <h2>Cosa misura la pedana</h2>
+  <p>La Wii Balance Board ha 4 sensori di carico, uno per angolo. Misura il peso e il centro di pressione, cioè il punto in cui si concentra il carico complessivo, e come si sposta nel tempo.</p>
+  <ul>
+    <li><b>Misure dirette:</b> peso, centro di pressione, percorso, velocità, area di oscillazione.</li>
+    <li><b>Stime:</b> carico sinistra e destra, avampiede e retropiede, le quattro zone. Dipendono dalla posizione dei piedi.</li>
+    <li><b>Non misurabile:</b> la mappa di pressione sotto il piede e il punto di picco. Serve una pedana baropodometrica con molti sensori.</li>
+  </ul>
+  <h2>Prima volta: abbinare la pedana a Windows</h2>
+  <ol>
+    <li>Metti le batterie nella pedana e apri lo sportellino: il pulsante rosso SYNC è lì dentro.</li>
+    <li>Sul PC, nella cartella del programma, fai doppio clic su <b>Abbina Balance Board.bat</b>.</li>
+    <li>Quando te lo chiede, premi il pulsante rosso SYNC: il LED frontale inizia a lampeggiare.</li>
+    <li>Quando l’abbinamento riesce, apri questa pagina con Chrome o Edge e premi <b>Collega la pedana</b>. Nell’elenco scegli “Nintendo RVL-WBC-01”.</li>
+    <li>Le volte successive basta il tasto frontale della pedana e poi <b>Collega la pedana</b>.</li>
+  </ol>
+  <p>Se il programma di abbinamento non funziona: in Windows apri Pannello di controllo, Dispositivi e stampanti, Aggiungi dispositivo. Premi SYNC, scegli “Nintendo RVL-WBC-01” e, se chiede un PIN, lascialo vuoto e prosegui. Con questo metodo potresti dover ripetere l’abbinamento a ogni uso.</p>
+  <h2>Quale computer</h2>
+  <p>L’esame completo funziona su PC o tablet Windows con Chrome o Edge. Tablet Android e iPad non possono collegarsi alla pedana: il browser non lo consente e Android blocca il tipo di connessione che la pedana usa.</p>
+  <h2>Come fare l’esame</h2>
+  <ol>
+    <li>Metti la pedana su un pavimento rigido e piano, con il tasto di accensione dalla parte dei talloni del cliente.</li>
+    <li>A pedana vuota, premi <b>Azzera a vuoto</b>.</li>
+    <li>Fai salire il cliente scalzo, con i piedi nella posizione che userai sempre. Controlla che il punto dal vivo si muova nel verso giusto. Se è invertito, premi <b>Pedana girata</b>.</li>
+    <li>Se il cliente è stabile, usa <b>Trova i piedi</b>: stima la loro posizione reale con quattro brevi spostamenti di peso, senza muovere i piedi. Resta accanto al cliente.</li>
+    <li>Fai almeno <b>Occhi aperti</b> e <b>Occhi chiusi</b>: il programma dà gli avvisi con la voce e il segnale sonoro.</li>
+    <li>Premi <b>Crea il report</b> e salvalo in PDF o stampalo.</li>
+  </ol>
+  <h2>Perché trovare i piedi</h2>
+  <p>Molti programmi calcolano sinistra e destra solo dai sensori agli angoli. I sensori però sono più lontani dei piedi, quindi la differenza risulta più piccola: un 56% reale su un piede può apparire come 54%. Serve anche sapere dove sono i piedi. Con la ricerca guidata la posizione viene misurata. Con le misure inserite, 1 cm di errore nel posizionamento sposta la stima di circa 5 punti percentuali.</p>
+  <h2>Cosa significano i parametri</h2>
+  <ul>
+    <li><b>Lunghezza del percorso:</b> la strada percorsa dal centro di pressione.</li>
+    <li><b>Velocità media:</b> lunghezza divisa per la durata.</li>
+    <li><b>Area dell’ellisse al 95%:</b> la superficie che contiene il 95% dei punti.</li>
+    <li><b>Occhi chiusi su aperti:</b> quanto aumenta l’oscillazione togliendo la vista (quoziente di Romberg).</li>
+    <li><b>Segno ▲ sul carico:</b> la differenza tra i due piedi raggiunge la soglia scelta nella pagina principale. ▲▲ indica almeno il doppio.</li>
+  </ul>
+  <h2>Quanto fidarsi</h2>
+  <p>Gli studi sulla pedana danno indicazioni diverse: alcuni la trovano affidabile, altri non equivalente a una piattaforma di laboratorio. L’errore tipico sul centro di pressione è di alcuni millimetri. Usala soprattutto per seguire la stessa persona nel tempo, sempre con lo stesso protocollo. Non è un dispositivo medico e il report non è una diagnosi. Il peso massimo è di 150 kg.</p>
+  <h2>Privacy</h2>
+  <p>I dati restano nel browser di questo dispositivo e non vengono inviati a nessuno. Chiedi il consenso del cliente e conserva con cura i file esportati.</p>
+  <h2>Fonti</h2>
+  <ul class="fine">
+    <li>Protocollo: <a href="https://wiibrew.org/wiki/Balance_Board">WiiBrew, Balance Board</a> e driver hid-wiimote di Linux.</li>
+    <li>Leach et al., <a href="https://www.mdpi.com/1424-8220/14/10/18244">Sensors 2014</a>. Bartlett et al., Gait &amp; Posture 2014. Pavan et al., European Journal of Sport Science 2015. Kaewkaen et al., Malaysian Journal of Medical Sciences 2019.</li>
+  </ul>
+</main>
+<script type="module" src="suitebar.js"></script>
+<script type="module" src="stabilometria-app.js"></script>
+</body>
+</html>

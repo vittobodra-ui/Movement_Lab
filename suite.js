@@ -2,7 +2,7 @@
 import { LAB } from './suitebar.js';
 import { allAnalyses, clientList, unnamedAnalyses, normName, cleanName, getClient, exportAll, importAny, renameClient, deleteClient, MODULE_NAMES } from './data.js';
 import * as A from './asym.js';
-import { WHEEL_DEFAULTS, WHEEL_LIMIT_INFO, wheelLimits, saveWheelLimits } from './corsa/ruota.js';
+import { WHEEL_DEFAULTS, WHEEL_LIMIT_INFO, wheelLimits, saveWheelLimits } from './corsa-ruota.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12,7 +12,7 @@ const dayTime = (ms) => new Date(ms).toLocaleString('it-IT', { day: 'numeric', m
 const LAST_BACKUP = 'lab_lastBackup';
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* non salvato */ } };
-const reportHref = (a) => `${a.mod}/#report/${a.id}`;
+const reportHref = (a) => `${a.mod}.html#report/${a.id}`;
 const VIEW = { side: 'laterale', front: 'frontale', rear: 'posteriore' };
 
 /* ---------- pagina principale ---------- */
