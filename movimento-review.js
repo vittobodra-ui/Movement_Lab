@@ -3,6 +3,39 @@ import { protocolById } from './movimento-measure.js';
 import { evaluate } from './movimento-analysis.js';
 import { drawPose } from './movimento-overlay.js';
 import { frameContext } from './movimento-store.js';
+import { setFindings, numbered } from './movimento-errori.js';
+
+// Punti e assi che si possono seguire nella revisione.
+const mid2 = (i, j) => ({ mid: [i, j] });
+export const TRACKS = [
+  { id: 'hipC', label: 'Centro del bacino', pt: mid2(23, 24), keys: ['shift', 'depth', 'drop', 'pelvis'] },
+  { id: 'shC', label: 'Centro delle spalle', pt: mid2(11, 12), keys: ['trunk', 'trunkLat', 'comp'] },
+  { id: 'head', label: 'Testa', pt: 0, keys: ['trunk', 'trunkLat'] },
+  { id: 'knL', label: 'Ginocchio sinistro', pt: 25, side: 'L', keys: ['valgus', 'narrow', 'depth', 'ankle'] },
+  { id: 'knR', label: 'Ginocchio destro', pt: 26, side: 'R', keys: ['valgus', 'narrow', 'depth', 'ankle'] },
+  { id: 'hpL', label: 'Anca sinistra', pt: 23, side: 'L', keys: ['pelvis', 'drop', 'shift', 'depth'] },
+  { id: 'hpR', label: 'Anca destra', pt: 24, side: 'R', keys: ['pelvis', 'drop', 'shift', 'depth'] },
+  { id: 'anL', label: 'Caviglia sinistra', pt: 27, side: 'L', keys: ['ankle'] },
+  { id: 'anR', label: 'Caviglia destra', pt: 28, side: 'R', keys: ['ankle'] },
+  { id: 'shL', label: 'Spalla sinistra', pt: 11, side: 'L', keys: ['shoulders', 'comp'] },
+  { id: 'shR', label: 'Spalla destra', pt: 12, side: 'R', keys: ['shoulders', 'comp'] },
+  { id: 'elL', label: 'Gomito sinistro', pt: 13, side: 'L', keys: ['swing', 'rom'] },
+  { id: 'elR', label: 'Gomito destro', pt: 14, side: 'R', keys: ['swing', 'rom'] },
+  { id: 'wrL', label: 'Polso sinistro', pt: 15, side: 'L', keys: ['arms', 'wrists', 'rom'] },
+  { id: 'wrR', label: 'Polso destro', pt: 16, side: 'R', keys: ['arms', 'wrists', 'rom'] },
+  { id: 'aTrunk', label: 'Asse del tronco', axis: [mid2(23, 24), mid2(11, 12)], ref: 'v', keys: ['trunk', 'trunkLat', 'comp'] },
+  { id: 'aPelvis', label: 'Linea del bacino', axis: [23, 24], ref: 'h', keys: ['pelvis', 'drop'] },
+  { id: 'aShoulders', label: 'Linea delle spalle', axis: [11, 12], ref: 'h', keys: ['shoulders'] },
+  { id: 'aThL', label: 'Coscia sinistra', axis: [23, 25], ref: 'v', side: 'L', keys: ['valgus', 'depth'] },
+  { id: 'aThR', label: 'Coscia destra', axis: [24, 26], ref: 'v', side: 'R', keys: ['valgus', 'depth'] },
+  { id: 'aShL', label: 'Tibia sinistra', axis: [27, 25], ref: 'v', side: 'L', keys: ['valgus', 'ankle'] },
+  { id: 'aShR', label: 'Tibia destra', axis: [28, 26], ref: 'v', side: 'R', keys: ['valgus', 'ankle'] },
+  { id: 'aArL', label: 'Braccio sinistro', axis: [11, 13], ref: 'v', side: 'L', keys: ['rom', 'arms', 'swing'] },
+  { id: 'aArR', label: 'Braccio destro', axis: [12, 14], ref: 'v', side: 'R', keys: ['rom', 'arms', 'swing'] },
+  { id: 'aFaL', label: 'Avambraccio sinistro', axis: [13, 15], ref: 'v', side: 'L', keys: ['rom', 'wrists'] },
+  { id: 'aFaR', label: 'Avambraccio destro', axis: [14, 16], ref: 'v', side: 'R', keys: ['rom', 'wrists'] },
+];
+const trackById = (id) => TRACKS.find((t) => t.id === id) ?? null;
 
 const it = (v, d = 0) => (v == null || !Number.isFinite(v) ? '–' : v.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d }));
 
@@ -35,7 +68,14 @@ export class Review {
         <button class="rv-manual" aria-pressed="false">Angolo a mano</button>
         ${this.compact ? '' : '<button class="rv-save">Salva fotogramma</button>'}
       </div>
-      ${this.compact ? '' : '<dl class="rv-values"></dl>'}`;
+      ${this.compact ? '' : `<div class="rv-bar rv-bar2 rv-track-bar">
+        <label>Traccia <select class="rv-track"><option value="">Nessun punto</option>
+          <optgroup label="Punti">${TRACKS.filter((t) => !t.axis).map((t) => `<option value="${t.id}">${t.label}</option>`).join('')}</optgroup>
+          <optgroup label="Assi">${TRACKS.filter((t) => t.axis).map((t) => `<option value="${t.id}">${t.label}</option>`).join('')}</optgroup></select></label>
+        <label>Intervallo <select class="rv-scope"><option value="">Tutta la serie</option>${(this.set.summary.reps ?? []).map((r, k) => `<option value="${k}">Ripetizione ${r.side ? `${r.side === 'L' ? 'sin' : 'des'} ` : ''}${r.i}</option>`).join('')}</select></label>
+      </div>
+      <div class="rv-explain" hidden></div>
+      <dl class="rv-values"></dl>`}`;
     const q = (s) => this.root.querySelector(s);
     this.video = q('video'); this.canvas = q('canvas');
     q('.rv-play').onclick = () => (this.playing ? this.pause() : this.play());
@@ -50,6 +90,11 @@ export class Review {
       this.pause(); this.drawCurrent();
     };
     if (q('.rv-save')) q('.rv-save').onclick = () => this.saveFrame();
+    if (q('.rv-track')) {
+      const upd = () => { this.track = trackById(q('.rv-track').value); this.scope = q('.rv-scope').value === '' ? null : Number(q('.rv-scope').value); this.explainTrack(); this.drawCurrent(); };
+      q('.rv-track').onchange = upd;
+      q('.rv-scope').onchange = () => { upd(); if (this.scope != null) this.goRep(this.scope); };
+    }
     this.canvas.addEventListener('pointerdown', (e) => {
       if (!this.manualMode) return;
       const r = this.canvas.getBoundingClientRect();
@@ -97,7 +142,8 @@ export class Review {
     if (this.hasVideo) {
       if (mirror) { c.save(); c.translate(W, 0); c.scale(-1, 1); c.drawImage(this.video, 0, 0, W, H); c.restore(); } else c.drawImage(this.video, 0, 0, W, H);
     } else { c.fillStyle = '#0d1b2b'; c.fillRect(0, 0, W, H); }
-    drawPose(c, frame, { W, H, aspect: this.aspect, mirror, view: this.set.view });
+    drawPose(c, frame, { W, H, aspect: this.aspect, mirror, view: this.set.view, hideArcs: !!this.track });
+    if (this.track) this.drawTrack(c, W, H, mirror);
     this.drawManual(c, Math.min(W, H) / 720);
     const t0 = this.pack.times[0];
     this.root.querySelector('.rv-time').textContent = `${it((this.pack.times[this.i] - t0) / 1000, 1)} s`;
@@ -123,6 +169,121 @@ export class Review {
       c.fillStyle = '#8df0a8'; c.beginPath(); c.roundRect(bx, by, tw + 14 * s, size + 12 * s, 4 * s); c.fill();
       c.fillStyle = '#14241f'; c.fillText(text, bx + 7 * s, by + size + 1 * s);
     }
+  }
+  /* Tracciamento di un punto o di un asse */
+  pointAt(i, spec) {
+    const g = (k) => { const o = i * 99 + k * 3; return { x: this.pack.pts[o], y: this.pack.pts[o + 1], v: this.pack.pts[o + 2] }; };
+    if (typeof spec === 'number') return g(spec);
+    const a = g(spec.mid[0]), b = g(spec.mid[1]);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, v: Math.min(a.v, b.v) };
+  }
+  trackRange() {
+    const n = this.pack.n, r = this.scope != null ? this.set.summary.reps?.[this.scope] : null;
+    if (!r) return [0, n - 1];
+    const t0 = this.pack.times[0];
+    let a = 0, b = n - 1;
+    while (a < n - 1 && this.pack.times[a] - t0 < r.t0) a++;
+    while (b > a && this.pack.times[b] - t0 > r.t1) b--;
+    return [a, b];
+  }
+  // Angolo dell'asse rispetto alla verticale o all'orizzontale dell'immagine, in gradi.
+  axisAngle(i, t) {
+    const A = this.pointAt(i, t.axis[0]), B = this.pointAt(i, t.axis[1]);
+    if (A.v < 0.3 || B.v < 0.3) return null;
+    const dx = B.x - A.x, dy = B.y - A.y;
+    return t.ref === 'h' ? Math.atan2(dy, Math.abs(dx) || 1e-6) * 180 / Math.PI : Math.atan2(dx, -dy) * 180 / Math.PI;
+  }
+  drawTrack(c, W, H, mirror) {
+    const t = this.track, [a, b] = this.trackRange(), s = Math.min(W, H) / 720;
+    const map = (p) => ({ x: ((mirror ? this.aspect - p.x : p.x) / this.aspect) * W, y: p.y * H });
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    if (!t.axis) {
+      const pts = []; for (let i = a; i <= b; i++) { const p = this.pointAt(i, t.pt); if (p.v >= 0.3) pts.push(map(p)); }
+      if (pts.length > 1) {
+        const start = pts[0];
+        c.setLineDash([8 * s, 6 * s]); c.lineWidth = 2 * s; c.strokeStyle = 'rgba(255,255,255,.85)';
+        c.beginPath(); c.moveTo(start.x, 0); c.lineTo(start.x, H); c.stroke(); c.setLineDash([]);
+        for (const [w, col] of [[8 * s, 'rgba(0,0,0,.55)'], [4 * s, '#ffe14d']]) {
+          c.lineWidth = w; c.strokeStyle = col; c.beginPath(); pts.forEach((p, k) => (k ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y))); c.stroke();
+        }
+        c.lineWidth = 3 * s; c.strokeStyle = '#ffe14d'; c.fillStyle = 'rgba(0,0,0,.6)';
+        c.beginPath(); c.arc(start.x, start.y, 9 * s, 0, 7); c.fill(); c.stroke();
+      }
+      const cur = this.pointAt(this.i, t.pt);
+      if (cur.v >= 0.3) { const p = map(cur); c.beginPath(); c.arc(p.x, p.y, 11 * s, 0, 7); c.fillStyle = '#ffe14d'; c.fill(); c.lineWidth = 3 * s; c.strokeStyle = '#000'; c.stroke(); }
+    } else {
+      const step = Math.max(1, Math.round((b - a) / 14));
+      for (let i = a; i <= b; i += step) {
+        const A = this.pointAt(i, t.axis[0]), B = this.pointAt(i, t.axis[1]); if (A.v < 0.3 || B.v < 0.3) continue;
+        const p = map(A), q = map(B); c.lineWidth = 3 * s; c.strokeStyle = 'rgba(255,225,77,.38)'; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke();
+      }
+      const A = this.pointAt(this.i, t.axis[0]), B = this.pointAt(this.i, t.axis[1]);
+      if (A.v >= 0.3 && B.v >= 0.3) {
+        const p = map(A), q = map(B), L = Math.hypot(q.x - p.x, q.y - p.y) * 1.15;
+        c.setLineDash([8 * s, 6 * s]); c.lineWidth = 2 * s; c.strokeStyle = 'rgba(255,255,255,.9)'; c.beginPath();
+        if (t.ref === 'h') { c.moveTo(p.x - L * 0.2, p.y); c.lineTo(p.x + L, p.y); } else { c.moveTo(p.x, p.y + L * 0.15); c.lineTo(p.x, p.y - L); }
+        c.stroke(); c.setLineDash([]);
+        for (const [w, col] of [[10 * s, 'rgba(0,0,0,.55)'], [5 * s, '#ffe14d']]) { c.lineWidth = w; c.strokeStyle = col; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); }
+        const ang = this.axisAngle(this.i, t);
+        if (ang != null) {
+          const text = `${it(Math.abs(ang), 0)}°`, size = Math.round(28 * s); c.font = `700 ${size}px Bahnschrift, Roboto, sans-serif`;
+          const tw = c.measureText(text).width, bx = Math.min(W - tw - 20 * s, (p.x + q.x) / 2 + 16 * s), by = (p.y + q.y) / 2 - size / 2;
+          c.fillStyle = '#ffe14d'; c.beginPath(); c.roundRect(bx, by, tw + 14 * s, size + 10 * s, 4 * s); c.fill(); c.fillStyle = '#14241f'; c.fillText(text, bx + 7 * s, by + size);
+        }
+      }
+    }
+    c.restore();
+  }
+  // Numeri del tracciamento e spiegazione: cosa fa il punto e quali errori riguarda.
+  explainTrack() {
+    const box = this.root.querySelector('.rv-explain'); if (!box) return;
+    const t = this.track;
+    if (!t || !this.pack?.n) { box.hidden = true; box.innerHTML = ''; return; }
+    const [a, b] = this.trackRange(), view = this.set.view, sm = this.set.summary;
+    const legs = []; for (let i = a; i <= b; i++) if (this.pack.leg[i] > 0) legs.push(this.pack.leg[i]);
+    const leg = legs.length ? legs.sort((x, y) => x - y)[Math.floor(legs.length / 2)] : null;
+    const pct = (d) => (leg ? `${it(Math.abs(d) / leg * 100)}% della lunghezza della gamba` : `${it(Math.abs(d) * 100, 1)} centesimi dell’altezza dell’immagine`);
+    // Verso nell'immagine → parola per il cliente
+    const sR = view === 'rear' ? 1 : -1, mir = this.media?.mirror ? -1 : 1;
+    const horiz = (dx) => {
+      const d = dx * mir;
+      if (view === 'side') return d * (sm.dir ?? 1) > 0 ? 'in avanti' : 'indietro';
+      return d * sR > 0 ? 'verso destra' : 'verso sinistra';
+    };
+    const lines = [];
+    // Istante chiave: punto più basso per le gambe, picco della ripetizione per le braccia.
+    let lowest = a, keyWord = 'Nel punto più basso del movimento', keyShort = 'nel punto più basso';
+    if (this.protocol.group === 'arm' && sm.reps?.length) {
+      const r = sm.reps[this.scope ?? Math.floor(sm.reps.length / 2)], target = this.pack.times[0] + r.tPeak;
+      let bd = Infinity; for (let i = a; i <= b; i++) { const d = Math.abs(this.pack.times[i] - target); if (d < bd) { bd = d; lowest = i; } }
+      keyWord = 'Al punto massimo del movimento'; keyShort = 'al punto massimo';
+    } else for (let i = a; i <= b; i++) if (this.pointAt(i, mid2(23, 24)).y > this.pointAt(lowest, mid2(23, 24)).y) lowest = i;
+    if (!t.axis) {
+      const pts = []; for (let i = a; i <= b; i++) { const p = this.pointAt(i, t.pt); if (p.v >= 0.3) pts.push({ ...p, i }); }
+      if (pts.length < 3) { box.hidden = false; box.innerHTML = '<p class="fine">Il punto scelto non si vede abbastanza in questa serie.</p>'; return; }
+      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y), start = pts[0];
+      const atLow = pts.reduce((x, y) => (Math.abs(y.i - lowest) < Math.abs(x.i - lowest) ? y : x));
+      lines.push(`Si sposta in tutto di ${pct(Math.max(...xs) - Math.min(...xs))} in orizzontale e di ${pct(Math.max(...ys) - Math.min(...ys))} in verticale.`);
+      const dx = atLow.x - start.x;
+      if (leg && Math.abs(dx) / leg > 0.02) lines.push(`${keyWord} è spostato ${horiz(dx)} di ${pct(dx)} rispetto alla partenza.`);
+      else lines.push(`${keyWord} resta quasi sulla verticale della partenza.`);
+      if ((t.id === 'knL' || t.id === 'knR') && view !== 'side') {
+        const s = t.side, hip = this.pointAt(atLow.i, s === 'L' ? 23 : 24), ank = this.pointAt(atLow.i, s === 'L' ? 27 : 28), oh = this.pointAt(atLow.i, s === 'L' ? 24 : 23);
+        const u = (atLow.y - hip.y) / ((ank.y - hip.y) || 1), lineX = hip.x + (ank.x - hip.x) * u, dev = (atLow.x - lineX) * Math.sign(oh.x - hip.x);
+        lines.push(`Rispetto alla linea anca-caviglia il ginocchio va ${dev > 0 ? 'verso l’interno' : 'verso l’esterno'} di ${pct(dev)}.`);
+      }
+    } else {
+      const angs = []; for (let i = a; i <= b; i++) { const v = this.axisAngle(i, t); if (v != null) angs.push(v); }
+      if (angs.length < 3) { box.hidden = false; box.innerHTML = '<p class="fine">L’asse scelto non si vede abbastanza in questa serie.</p>'; return; }
+      const refW = t.ref === 'h' ? 'dall’orizzontale' : 'dalla verticale', low = this.axisAngle(lowest, t);
+      lines.push(`Inclinazione ${refW}: da ${it(Math.min(...angs))}° a ${it(Math.max(...angs))}°${low != null ? `, ${it(low)}° ${keyShort}` : ''}.`);
+      lines.push('Le linee chiare mostrano l’asse lungo il movimento, quella gialla il fotogramma attuale, il tratteggio il riferimento.');
+    }
+    const fs = numbered(setFindings(this.set)).filter((f) => f.state === 'flag' && t.keys.some((k) => f.key === k || f.key.startsWith(`${k}_`)) && (!t.side || !f.side || !/^(valgus|rom)/.test(f.key) || f.side === t.side));
+    box.hidden = false;
+    box.innerHTML = `<h3>${t.label}${this.scope != null ? `, ripetizione ${this.scope + 1}` : ''}</h3><p>${lines.join(' ')}</p>
+      ${fs.length ? `<p><b>Cosa non va:</b></p><ul class="mf-list">${fs.map((f) => `<li><span class="mf-num">${f.n}</span><div><b>${f.title}</b> <span class="mf-val">${f.value}</span><br>${f.plain}<br><span class="mf-cue">Cosa provare: ${f.cue}</span></div></li>`).join('')}</ul>`
+        : '<p class="fine">Per questo punto nessuna misura supera le soglie. Guarda comunque il percorso: se oscilla molto da una ripetizione all’altra il controllo è poco costante.</p>'}`;
   }
   goRep(k, phase = 'peak') {
     const r = this.set.summary.reps[k]; if (!r) return;

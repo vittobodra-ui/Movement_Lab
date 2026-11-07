@@ -1,9 +1,11 @@
-import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES } from './movimento-measure.js';
+import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList } from './movimento-measure.js';
+import { reanalyzePack } from './movimento-analysis.js';
+import { setErrorsHtml } from './movimento-errori.js';
 import { Station } from './movimento-station.js';
 import { nearestPoint } from './movimento-overlay.js';
 import { Review } from './movimento-review.js';
 import { renderReport, renderArchive, repsTable, bindCharts, download, it, setName, fmtDate } from './movimento-report.js';
-import { saveSession, getSession, allSessions, putMedia, getMedia, deleteMedia } from './movimento-store.js';
+import { saveSession, getSession, allSessions, putMedia, getMedia, deleteMedia, packFrames } from './movimento-store.js';
 import { movimentoLive, movimentoSetFlags, flagLine, mark, sideWord } from './asym.js';
 
 const PLATFORM = document.body.dataset.platform;
@@ -20,6 +22,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const DEFAULTS = { model: isPhone ? 'lite' : 'full', countdown: isPhone ? '5' : '3', duration: '0', rate: '1', record: true, keepVideo: true, sound: true, voice: false, trail: true, labels: false };
 let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(ls.get('am_settings', '{}')) }; } catch { /* valori predefiniti */ }
+if (!['0', '3', '5'].includes(String(settings.countdown))) settings.countdown = '5';
 $('s_model').innerHTML = isPhone
   ? '<option value="lite">Veloce</option><option value="full">Preciso, scalda di più</option>'
   : '<option value="lite">Veloce</option><option value="full">Preciso</option><option value="heavy">Massimo, solo con scheda grafica potente</option>';
@@ -29,6 +32,14 @@ for (const k of Object.keys(DEFAULTS)) {
   el.addEventListener('change', () => { settings[k] = el.type === 'checkbox' ? el.checked : el.value; ls.set('am_settings', JSON.stringify(settings)); });
 }
 const getSettings = () => settings;
+function setCountdown(v) {
+  settings.countdown = String(v); ls.set('am_settings', JSON.stringify(settings));
+  $('s_countdown').value = settings.countdown;
+  document.querySelectorAll('[data-cd]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cd === settings.countdown)));
+}
+document.querySelectorAll('[data-cd]').forEach((b) => { b.onclick = () => setCountdown(b.dataset.cd); });
+$('s_countdown').addEventListener('change', () => setCountdown($('s_countdown').value));
+setCountdown(settings.countdown);
 
 /* ---------- sessione ---------- */
 let session = null;
@@ -36,6 +47,7 @@ const newSession = () => ({ id: Date.now(), createdAt: Date.now(), person: $('pe
 function renderHome() {
   $('ex-squat').innerHTML = PROTOCOLS.filter((p) => p.group === 'squat').map(row).join('');
   $('ex-arm').innerHTML = PROTOCOLS.filter((p) => p.group === 'arm').map(row).join('');
+  $('ex-lift').innerHTML = PROTOCOLS.filter((p) => p.group === 'lift').map(row).join('');
   const box = $('doneSets'), sets = session?.sets ?? [];
   box.innerHTML = sets.length ? `<ul>${sets.map((s) => `<li><a href="#result/${session.id}/${s.id}">${esc(setName(s))}</a></li>`).join('')}</ul>
     <button id="toReport" class="primary">Crea il referto</button> <button id="newSess" class="quiet">Inizia una nuova sessione</button>` : '';
@@ -68,14 +80,16 @@ function bayMarkup(k) {
       <div class="rows" id="rows${k}"></div>
     </div>
     <div class="bay-tools">
-      <div class="seg" id="seg${k}" role="group" aria-label="Posizione della camera"></div>
-      <label id="sideL${k}">Lato <select id="side${k}"><option value="auto">Automatico</option><option value="L">Sinistro</option><option value="R">Destro</option></select></label>
-      <label class="wsrc">Sorgente <select id="src${k}"></select></label>
+      <label class="wview">Ripresa da <select id="view${k}"></select></label>
+      <label class="wside" id="sideL${k}"><span id="sideT${k}">Lato</span> <select id="side${k}"></select></label>
+      <label class="wsrc">Camera <select id="src${k}"></select></label>
       <label class="btn">File video<input id="file${k}" type="file" accept="video/*" hidden></label>
-      <label class="wnum">Obiettivo ° <input id="goal${k}" type="number" inputmode="numeric"></label>
       <label class="wnum" id="loadL${k}">Carico kg <input id="load${k}" type="number" step="0.5" inputmode="decimal"></label>
-      <label class="check"><input type="checkbox" id="mir${k}"> Specchia</label>
-      <button id="demo${k}" aria-pressed="false">Simula</button>
+      <details class="more"><summary>Altre opzioni</summary><div class="more-row">
+        <label class="wnum">Obiettivo ° <input id="goal${k}" type="number" inputmode="numeric"></label>
+        <label class="check"><input type="checkbox" id="mir${k}"> Specchia</label>
+        <button id="demo${k}" aria-pressed="false">Simula</button>
+      </div></details>
     </div>
   </div>`;
 }
@@ -84,26 +98,57 @@ function setHint(k, msg, warn = false, keepMs = 0) {
   h.textContent = msg; h.classList.toggle('warn', warn);
   if (bays[k]) bays[k].hintUntil = keepMs ? performance.now() + keepMs : 0;
 }
-async function openCapture(pid) {
+function fillExSel() {
+  const g = (grp, label) => `<optgroup label="${label}">${PROTOCOLS.filter((p) => p.group === grp).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`;
+  $('exSel').innerHTML = `${g('squat', 'Accosciate e arto inferiore')}${g('lift', 'Stacco, panca e trazioni')}${g('arm', 'Arti superiori')}<optgroup label="Altro"><option value="custom">Angolo personalizzato</option></optgroup>`;
+  $('exSel').value = protocol.custom ? 'custom' : protocol.id;
+  $('capName').hidden = !protocol.custom;
+}
+// Cambio di esercizio senza chiudere le camere: si riconfigura solo l'analisi.
+async function switchProtocol(id) {
+  if (id === 'custom' || protocol?.custom) { location.hash = `#capture/${id}`; return; }
+  const p = protocolById(id); if (!p) return;
+  protocol = p; customPick = null;
+  const views = viewList(p);
+  for (const b of bays) if (b) {
+    b.view = b.k === 0 ? defaultView(p) : (views.find((v) => v !== bays[0].view) ?? views[0]);
+    b.st.configure(protocol, b.view, 'auto');
+    if (b.st.kind === 'demo') b.st.useDemo(isPhone ? 9 / 16 : 16 / 9);
+    b.traceA = []; b.traceB = [];
+    buildSegments(b); renderRows(b);
+    const goal = ls.get(`am_goal_${protocol.id}`, ''); $(`goal${b.k}`).value = goal; b.st.goal = goal === '' ? null : parseFloat(goal);
+    $(`loadL${b.k}`).hidden = !protocol.load;
+  }
+  fillExSel();
+  history.replaceState(null, '', `#capture/${id}`);
+  refreshGo();
+}
+$('exSel').onchange = (e) => switchProtocol(e.target.value);
+let redo = null;
+async function openCapture(pid, viewArg, redoArg) {
   closeCapture();
   const spec = pid === 'custom' ? null : protocolById(pid);
   if (pid !== 'custom' && !spec) { location.hash = '#home'; return; }
   protocol = spec ?? customProtocol(23, 25, 27, null);
   customPick = pid === 'custom' ? { a: [], mode: 'tre', done: false } : null;
+  redo = null;
+  if (redoArg?.startsWith('redo:')) { const [, sid, setId] = redoArg.split(':'); redo = { sid: Number(sid), setId: Number(setId) }; }
   $('capture').hidden = false;
   $('capture').classList.remove('tools-open');
   $('capName').textContent = protocol.name;
+  fillExSel();
   $('bays').className = 'bays one';
   $('bays').innerHTML = bayMarkup(0);
   $('addCam').hidden = isPhone; $('addCam').textContent = 'Aggiungi seconda camera';
   $('go').disabled = true; $('go').textContent = 'Avvia la serie'; $('go').className = 'go';
   $('metro').hidden = !isPhone;
   bays = [];
-  await initBay(0, Object.keys(protocol.views)[0]);
+  await initBay(0, protocol.views[viewArg] ? viewArg : defaultView(protocol), !redo);
+  if (redo) await loadRedo(bays[0]);
   acquireWakeLock();
   if (isPhone) startLevel();
 }
-async function initBay(k, view) {
+async function initBay(k, view, startCam = true) {
   const b = { k, view, state: 'idle', traceA: [], traceB: [], lastUi: 0, hintUntil: 0 };
   bays[k] = b;
   b.st = new Station({
@@ -120,6 +165,7 @@ async function initBay(k, view) {
   $(`goal${k}`).onchange = (e) => { const v = e.target.value; ls.set(`am_goal_${protocol.id}`, v); b.st.goal = v === '' ? null : parseFloat(v); };
   $(`loadL${k}`).hidden = !protocol.load;
   $(`side${k}`).onchange = (e) => { b.st.sideMode = e.target.value; b.st.newAnalyzer(false); };
+  $(`view${k}`).onchange = (e) => setView(b, e.target.value);
   $(`mir${k}`).onchange = (e) => { b.st.mirror = e.target.checked; };
   $(`file${k}`).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setDemoPressed(k, false); await b.st.useFile(f); refreshGo(); e.target.value = ''; $(`src${k}`).value = 'file'; };
   $(`demo${k}`).onclick = () => toggleDemo(b);
@@ -127,20 +173,51 @@ async function initBay(k, view) {
   $(`c${k}`).addEventListener('pointerdown', (e) => onStageTap(b, e));
   renderRows(b);
   await fillSources(k);
-  await startDefaultSource(b);
+  if (startCam) await startDefaultSource(b);
 }
+// Il video di una serie salvata torna nella postazione: la nuova analisi sostituirà quella vecchia.
+async function loadRedo(b) {
+  const s = await getSession(redo.sid).catch(() => null), set = s?.sets?.find((x) => x.id === redo.setId);
+  let media = set ? await getMedia(set.id).catch(() => null) : null;
+  if (media && !media.blob && lastBlobs.has(set.id)) media = { ...media, ...lastBlobs.get(set.id) };
+  if (!set || !media?.blob) { redo = null; setHint(b.k, 'Il video di questa serie non è in archivio: non si può rianalizzare.', true, 10000); await startDefaultSource(b); return; }
+  redo.set = set;
+  const ext = (media.mime ?? media.blob.type ?? '').includes('mp4') ? 'mp4' : 'webm';
+  const file = media.blob instanceof File ? media.blob : new File([media.blob], `serie.${ext}`, { type: media.blob.type || media.mime || 'video/webm' });
+  b.st.mirror = !!media.mirror; $(`mir${b.k}`).checked = b.st.mirror;
+  if (set.sideMode && $(`side${b.k}`).querySelector(`option[value="${set.sideMode}"]`)) { $(`side${b.k}`).value = set.sideMode; b.st.sideMode = set.sideMode; }
+  if (set.load) $(`load${b.k}`).value = set.load;
+  await b.st.useFile(file); $(`src${b.k}`).value = 'file';
+  $('go').textContent = 'Rianalizza il video';
+  setHint(b.k, 'Video della serie caricato. Controlla esercizio, ripresa e lato, poi premi “Rianalizza il video”: il risultato sostituirà quello salvato.', false, 60000);
+  refreshGo();
+}
+// Menu della vista e del lato: il lato serve solo di lato o con una gamba sola.
 function buildSegments(b) {
-  const k = b.k, seg = $(`seg${k}`);
-  seg.innerHTML = Object.keys(protocol.views).map((v) => `<button data-v="${v}" aria-pressed="${v === b.view}">${VIEW_NAMES[v]}</button>`).join('');
-  seg.querySelectorAll('button').forEach((x) => { x.onclick = () => {
-    b.view = x.dataset.v;
-    seg.querySelectorAll('button').forEach((y) => y.setAttribute('aria-pressed', String(y === x)));
-    b.st.configure(protocol, b.view, $(`side${k}`).value);
-    if (b.st.kind === 'demo') { b.st.useDemo(isPhone ? 9 / 16 : 16 / 9); }
-    b.traceA = []; b.traceB = [];
-    renderRows(b); updateFootButtons();
-  }; });
+  const k = b.k, sel = $(`view${k}`);
+  sel.innerHTML = viewList(protocol).map((v) => `<option value="${v}">${protocol.viewLabels?.[v] ?? `${VIEW_NAMES[v]}${v === 'rear' ? ', da dietro' : v === 'front' ? ', da davanti' : ', di fianco'}`}</option>`).join('');
+  sel.value = b.view;
+  buildSideSel(b);
   updateFootButtons();
+}
+function buildSideSel(b) {
+  const k = b.k, spec = protocol.views[b.view], wrap = $(`sideL${k}`), sel = $(`side${k}`), prev = sel.value;
+  const uni = b.view !== 'side' && !!spec.legPick;
+  wrap.hidden = !(b.view === 'side' || uni);
+  $(`sideT${k}`).textContent = b.view === 'side' ? (protocol.group === 'arm' ? 'Braccio misurato' : 'Lato verso la camera') : 'Gamba di lavoro';
+  if (protocol.family === 'slrdl' && b.view === 'side') $(`sideT${k}`).textContent = 'Gamba d’appoggio';
+  const f = b.view === 'side' ? ['Automatico', 'Sinistro', 'Destro'] : ['Automatica', 'Sinistra', 'Destra'];
+  sel.innerHTML = `<option value="auto">${f[0]}</option><option value="L">${f[1]}</option><option value="R">${f[2]}</option>`;
+  sel.value = wrap.hidden ? 'auto' : ['auto', 'L', 'R'].includes(prev) ? prev : 'auto';
+  b.st.sideMode = sel.value;
+}
+function setView(b, view) {
+  b.view = view;
+  buildSideSel(b);
+  b.st.configure(protocol, b.view, $(`side${b.k}`).value);
+  if (b.st.kind === 'demo') { b.st.useDemo(isPhone ? 9 / 16 : 16 / 9); }
+  b.traceA = []; b.traceB = [];
+  renderRows(b); updateFootButtons();
 }
 function updateFootButtons() {
   const anyFront = bays.some((b) => b && b.view !== 'side' && b.st.kind !== 'file');
@@ -331,7 +408,7 @@ function startSet() {
 function cancelCount() {
   clearInterval(counting); counting = null;
   for (const b of bays) if (b) $(`count${b.k}`).hidden = true;
-  $('go').textContent = 'Avvia la serie'; $('go').className = 'go';
+  $('go').textContent = redo ? 'Rianalizza il video' : 'Avvia la serie'; $('go').className = 'go';
 }
 function record() {
   beep(1100, 260);
@@ -363,6 +440,7 @@ async function finishSet() {
   const useful = results.filter(({ out }) => out && (out.summary.reps.length || out.keyframes.length > 1 || out.summary.durationS > 2));
   go.disabled = false; go.textContent = 'Avvia la serie'; go.className = 'go'; finishing = false;
   if (!useful.length) { setHint(live[0]?.k ?? 0, 'Serie non salvata: non ho riconosciuto il corpo per abbastanza tempo. Controlla l’inquadratura e riprova.', true, 8000); return; }
+  if (redo?.set) { await replaceRedo(useful[0]); return; }
   session ??= newSession(); syncForm();
   const ids = [];
   for (const { b, out } of useful) {
@@ -383,10 +461,26 @@ async function finishSet() {
   location.hash = `#result/${session.id}/${ids[0]}`;
 }
 const lastBlobs = new Map();
+async function replaceRedo({ b, out }) {
+  const s = await getSession(redo.sid), old = redo.set, idx = s?.sets?.findIndex((x) => x.id === old.id) ?? -1;
+  if (idx < 0) { setHint(b.k, 'La serie originale non è più in archivio.', true, 8000); return; }
+  const id = Date.now();
+  const set = {
+    ...old, id, protocolId: protocol.id, customSpec: protocol.custom ? protocol.spec : undefined, name: protocol.name, view: b.view, sideMode: b.st.sideMode, load: $(`load${b.k}`).value,
+    summary: out.summary, keyframes: out.keyframes, simulated: false, aspect: out.aspect, hasVideo: true, edited: Date.now(), editNote: 'rianalizzata dal video',
+  };
+  s.sets[idx] = set;
+  await saveSession(s);
+  await putMedia({ setId: id, blob: out.blob, pack: out.pack, videoOffset: out.videoOffset, mime: out.mime, mirror: out.mirror });
+  await deleteMedia(old.id);
+  if (s.id === session?.id) session = s;
+  redo = null;
+  location.hash = `#result/${s.id}/${id}`;
+}
 function closeCapture() {
   clearInterval(counting); counting = null; clearInterval(durTimer);
   for (const b of bays) if (b) { b.st.stopSource(); b.st.pose?.close?.(); }
-  bays = []; protocol = null; customPick = null;
+  bays = []; protocol = null; customPick = null; redo = null;
   $('capture').hidden = true; $('bays').innerHTML = '';
   stopMetronome(); releaseWakeLock(); stopLevel();
 }
@@ -399,7 +493,7 @@ async function addSecondCamera() {
   $('bays').className = 'bays two';
   $('bays').insertAdjacentHTML('beforeend', bayMarkup(1));
   $('addCam').textContent = 'Togli seconda camera';
-  const views = Object.keys(protocol.views);
+  const views = viewList(protocol);
   await initBay(1, views.find((v) => v !== bays[0].view) ?? views[0]);
   setHint(1, 'Con due camere ognuna riceve circa metà dei fotogrammi analizzati.', false, 6000);
 }
@@ -499,9 +593,11 @@ async function renderResult(sid, setId) {
         </div>
         ${others.length ? `<p class="fine">Altre serie della sessione: ${others.map((k) => `<a href="#result/${s.id}/${k.id}">${esc(setName(k))}</a>`).join(', ')}.</p>` : ''}
         <label>Nota sulla serie <input id="setNote" value="${esc(set.note ?? '')}"></label>
+        ${editPanel(set, media)}
         ${set.keyframes?.length ? `<div class="keys">${set.keyframes.map((k) => `<figure><img src="${k.src}" alt="${esc(k.label)}"><figcaption>${esc(k.label)}</figcaption></figure>`).join('')}</div>` : ''}
       </div>
-    </div></div>`;
+    </div>
+    ${setErrorsHtml(set, { title: 'Cosa abbiamo visto in questa serie' })}</div>`;
   const rv = new Review(root.querySelector('#rv'), {
     set, media,
     onMessage: (m, err) => NOTE(m, err),
@@ -518,6 +614,7 @@ async function renderResult(sid, setId) {
   };
   if ($('cmpSel')) $('cmpSel').onchange = (e) => { if (e.target.value) location.hash = `#compare/${s.id}:${set.id}/${e.target.value}`; };
   $('setNote').onchange = async (e) => { set.note = e.target.value; await saveSession(s); if (s.id === session?.id) session = s; };
+  bindEdit(s, set, media);
   $('delSet').onclick = async (e) => {
     if (!e.target.dataset.armed) { e.target.dataset.armed = '1'; e.target.textContent = 'Conferma eliminazione'; return; }
     s.sets = s.sets.filter((k) => k.id !== set.id); await saveSession(s); await deleteMedia(set.id);
@@ -525,6 +622,52 @@ async function renderResult(sid, setId) {
     location.hash = s.sets.length ? `#report/${s.id}` : '#home';
   };
   if (s.id === session?.id) session = s;
+}
+/* Modifica di una serie salvata */
+function editPanel(set, media) {
+  if (set.protocolId === 'custom') return '';
+  const opts = (grp, label) => `<optgroup label="${label}">${PROTOCOLS.filter((p) => p.group === grp).map((p) => `<option value="${p.id}"${p.id === set.protocolId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`;
+  return `<details class="edit-set" id="editSet"><summary>Modifica la serie e ricalcola</summary>
+    <p class="fine">Se in ripresa era scelto l’esercizio, la vista o il lato sbagliato, correggilo qui. “Ricalcola” rifà misure e ripetizioni dai punti salvati, in un attimo. “Rianalizza il video” riconosce di nuovo il corpo dal video, per esempio con il riconoscimento più preciso.</p>
+    <div class="edit-row">
+      <label>Esercizio <select id="edEx">${opts('squat', 'Accosciate e arto inferiore')}${opts('lift', 'Stacco, panca e trazioni')}${opts('arm', 'Arti superiori')}</select></label>
+      <label>Ripresa da <select id="edView"></select></label>
+      <label id="edSideL">Lato <select id="edSide"><option value="auto">Automatico</option><option value="L">Sinistro</option><option value="R">Destro</option></select></label>
+      <label>Carico kg <input id="edLoad" type="number" step="0.5" value="${esc(set.load ?? '')}"></label>
+    </div>
+    <div class="edit-actions"><button id="edCalc" class="primary"${media?.pack?.n ? '' : ' disabled'}>Ricalcola dai punti salvati</button>
+      <button id="edRedo"${media?.blob ? '' : ' disabled'}>Rianalizza il video</button></div>
+    ${media?.pack?.n ? '' : '<p class="fine">I punti di questa serie non sono in archivio.</p>'}${media?.blob ? '' : '<p class="fine">Il video di questa serie non è stato conservato: si può solo ricalcolare dai punti.</p>'}
+    ${set.edited ? `<p class="edited">Modificata il ${fmtDate(set.edited)}${set.editNote ? `, ${esc(set.editNote)}` : ''}.</p>` : ''}</details>`;
+}
+function bindEdit(s, set, media) {
+  if (!$('editSet')) return;
+  const fillViews = () => {
+    const p = protocolById($('edEx').value), cur = $('edView').value || set.view;
+    $('edView').innerHTML = viewList(p).map((v) => `<option value="${v}">${VIEW_NAMES[v]}</option>`).join('');
+    $('edView').value = p.views[cur] ? cur : defaultView(p);
+    const uni = $('edView').value !== 'side' && !!p.views[$('edView').value].legPick;
+    $('edSideL').hidden = !($('edView').value === 'side' || uni);
+  };
+  $('edView').innerHTML = `<option value="${set.view}">${VIEW_NAMES[set.view]}</option>`;
+  $('edSide').value = ['L', 'R'].includes(set.sideMode) ? set.sideMode : 'auto';
+  fillViews();
+  $('edEx').onchange = fillViews; $('edView').onchange = fillViews;
+  $('edCalc').onclick = async (e) => {
+    const p = protocolById($('edEx').value), view = $('edView').value, sideMode = $('edSideL').hidden ? 'auto' : $('edSide').value;
+    e.target.disabled = true; e.target.textContent = 'Ricalcolo…';
+    try {
+      const a = reanalyzePack(media.pack, { protocol: p, view, sideMode, aspect: set.aspect ?? 16 / 9, baseTilt: set.summary?.baseTilt ?? null });
+      const summary = a.summary();
+      Object.assign(set, { protocolId: p.id, name: p.name, view, sideMode, load: $('edLoad').value, summary, edited: Date.now(), editNote: 'ricalcolata dai punti salvati' });
+      const stored = await getMedia(set.id).catch(() => null);
+      await putMedia({ ...(stored ?? { setId: set.id, blob: null, videoOffset: media.videoOffset, mime: media.mime, mirror: media.mirror }), pack: packFrames(a.frames) });
+      await saveSession(s); if (s.id === session?.id) session = s;
+      await renderResult(s.id, set.id);
+      NOTE(`Serie ricalcolata: ${summary.reps.length} ripetizioni, vista ${VIEW_NAMES[view].toLowerCase()}.`);
+    } catch (err) { console.error(err); NOTE(`Ricalcolo non riuscito: ${err.message}`, true); e.target.disabled = false; e.target.textContent = 'Ricalcola dai punti salvati'; }
+  };
+  $('edRedo').onclick = () => { location.hash = `#capture/${$('edEx').value}/${$('edView').value}/redo:${s.id}:${set.id}`; };
 }
 async function renderCompare(a, b) {
   const root = $('compare');
@@ -547,7 +690,7 @@ async function renderCompare(a, b) {
 
 /* ---------- navigazione ---------- */
 async function route() {
-  const [page, a, b] = (location.hash.slice(1) || 'home').split('/');
+  const [page, a, b, c] = (location.hash.slice(1) || 'home').split('/');
   closeCapture(); closeReviews();
   const known = ['home', 'archivio', 'report', 'guida', 'result', 'compare'];
   const showing = page === 'capture' ? 'home' : known.includes(page) ? page : 'home';
@@ -559,7 +702,7 @@ async function route() {
   if (showing === 'report') renderReport($('report'), Number(a), b);
   if (showing === 'result') renderResult(a, b);
   if (showing === 'compare') renderCompare(a, b);
-  if (page === 'capture') await openCapture(a);
+  if (page === 'capture') await openCapture(a, b, c);
   scrollTo(0, 0);
 }
 addEventListener('hashchange', route);

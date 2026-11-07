@@ -245,3 +245,22 @@ export function evaluate(spec, ctx) {
   return { values, draws };
 }
 export { other, DEG };
+
+// Ricalcola una serie dai punti salvati, con un altro esercizio, vista o lato. I punti sono già filtrati:
+// si rifanno solo il lato misurato, le misure e le ripetizioni. Nelle viste frontale e posteriore i lati
+// si riassegnano dalla posizione nell'immagine, come durante la ripresa.
+export function reanalyzePack(pack, { protocol, view, sideMode = 'auto', aspect = 16 / 9, baseTilt = null }) {
+  const a = new SetAnalyzer({ protocol, view, aspect, sideMode, baseTilt, recording: true });
+  for (let i = 0; i < pack.n; i++) {
+    const P = [];
+    for (let k = 0; k < 33; k++) { const o = i * 99 + k * 3; P.push({ x: pack.pts[o], y: pack.pts[o + 1], z: 0, v: pack.pts[o + 2] }); }
+    if (view === 'front' || view === 'rear') {
+      const hipsOk = P[23].v > 0.4 && P[24].v > 0.4, dx = hipsOk ? P[24].x - P[23].x : P[12].x - P[11].x;
+      const wrong = view === 'rear' ? dx < 0 : dx > 0;
+      if (wrong && Math.abs(dx) > 0.004) for (const [p, q] of PAIRS) { const t = P[p]; P[p] = P[q]; P[q] = t; }
+    }
+    a.total++; a.fpsT.push(pack.times[i]); if (a.fpsT.length > 40) a.fpsT.shift();
+    a.evaluateFrame(P, pack.times[i]);
+  }
+  return a;
+}

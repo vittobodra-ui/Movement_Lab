@@ -2,6 +2,7 @@
 import { allSessions, getSession, deleteSession, saveSession } from './movimento-store.js';
 import { VIEW_NAMES, protocolById } from './movimento-measure.js';
 import { movimentoFlags, movimentoPair, movimentoSigned, movimentoCross, sectionHtml, mark, sideWord, MOVIMENTO_KEYS } from './asym.js';
+import { setErrorsHtml } from './movimento-errori.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const it = (v, d = 0) => (v == null || !Number.isFinite(v) ? '–' : v.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d }));
@@ -97,6 +98,15 @@ export function bindCharts(root) {
   });
 }
 
+// Fotogrammi: solo quelli veri, perché quelli della simulazione sono un fondo scuro con poche linee.
+// In stampa compaiono solo se richiesti, per non consumare inchiostro.
+export function keysHtml(set) {
+  if (set.simulated || !set.keyframes?.length) return '';
+  return `<div class="keys photos">${set.keyframes.map((k) => `<figure><img src="${k.src}" alt="${esc(k.label)}"><figcaption>${esc(k.label)}</figcaption></figure>`).join('')}</div>`;
+}
+const PHOTO_KEY = 'lab_mov_foto_stampa';
+const photosInPrint = () => { try { return localStorage.getItem(PHOTO_KEY) === '1'; } catch { return false; } };
+
 export async function renderReport(root, id, cmpId = null) {
   const s = await getSession(id);
   if (!s) { root.innerHTML = '<p class="empty">Questa sessione non è più in archivio. <a href="#archivio">Apri l’archivio</a></p>'; return; }
@@ -112,9 +122,10 @@ export async function renderReport(root, id, cmpId = null) {
       ${proto.estimate ? '<p class="note">Stima: questa misura è meno affidabile delle altre perché i punti coinvolti sono piccoli o sovrapposti.</p>' : ''}
       ${sm.viewWarn ? `<p class="note">${esc(sm.viewWarn)}</p>` : ''}
       ${set.note ? `<p>${esc(set.note)}</p>` : ''}
+      ${setErrorsHtml(set)}
       ${metricRows(sm, priorFor(set)?.summary)}
       ${repsTable(sm, spec)}
-      ${set.keyframes?.length ? `<div class="keys">${set.keyframes.map((k) => `<figure><img src="${k.src}" alt="${esc(k.label)}"><figcaption>${esc(k.label)}</figcaption></figure>`).join('')}</div>` : ''}
+      ${keysHtml(set)}
       ${chart(set)}
       <p class="no-print"><a class="btn" href="#result/${s.id}/${set.id}">Rivedi fotogramma per fotogramma</a></p></section>`;
   }).join('');
@@ -122,6 +133,7 @@ export async function renderReport(root, id, cmpId = null) {
     <header class="rep-head"><div><div class="studio-line">${esc(window.LAB.studio())}</div><h1>${esc(s.person || 'Analisi del movimento')}</h1><p>${fmtDate(s.createdAt)}</p></div>
       <div class="rep-actions no-print">
         <label>Confronta con <select id="cmp"><option value="">Nessuna sessione</option>${others.map((o) => `<option value="${o.id}" ${String(o.id) === String(cmpId) ? 'selected' : ''}>${fmtDate(o.createdAt)}${o.sets.some((k) => k.simulated) ? ' (simulata)' : ''}</option>`).join('')}</select></label>
+        <label class="check"><input type="checkbox" id="photosPrint"${photosInPrint() ? ' checked' : ''}> Stampa anche le foto</label>
         <button id="print" class="primary">Stampa o salva PDF</button><a class="btn" href="#archivio">Archivio</a></div></header>
     ${sim ? '<p class="sim-banner">Contiene serie simulate: quei dati vengono da un soggetto virtuale, non da una persona.</p>' : ''}
     ${s.notes ? `<p class="notes">${esc(s.notes)}</p>` : ''}
@@ -131,6 +143,9 @@ export async function renderReport(root, id, cmpId = null) {
     ${sections || '<p class="empty">Questa sessione non contiene serie.</p>'}
     <p class="fine disclaimer">Stime da video 2D: valide sul piano ripreso e per confrontare sessioni fatte con la stessa inquadratura. Non sono misure di laboratorio e non costituiscono una diagnosi.</p></div>`;
   root.querySelector('#print').onclick = () => print();
+  const syncPhotos = () => root.querySelector('.report').classList.toggle('print-photos', root.querySelector('#photosPrint').checked);
+  root.querySelector('#photosPrint').onchange = (e) => { try { localStorage.setItem(PHOTO_KEY, e.target.checked ? '1' : '0'); } catch { /* scelta non salvata */ } syncPhotos(); };
+  syncPhotos();
   root.querySelector('#cmp').onchange = (e) => { location.hash = `#report/${id}${e.target.value ? `/${e.target.value}` : ''}`; };
   bindCharts(root);
 }
@@ -145,8 +160,8 @@ export async function renderArchive(root) {
   const list = (await allSessions()).filter((s) => s.sets?.length);
   root.innerHTML = `<div class="archive">
     <header class="rep-head"><h1>Archivio</h1><div class="rep-actions"><a class="btn" href="index.html#backup">Copia di sicurezza</a></div></header>
-    ${list.length ? `<div class="tablewrap"><table class="metrics"><thead><tr><th>Persona</th><th>Data</th><th>Serie</th><th></th></tr></thead><tbody>
-      ${list.map((s) => `<tr><th scope="row"><a href="#report/${s.id}">${esc(s.person || 'Non indicata')}</a>${s.sets.some((k) => k.simulated) ? ' <span class="u">con simulazione</span>' : ''}</th><td>${fmtDate(s.createdAt)}</td><td>${s.sets.map((k) => esc(k.name)).join(', ')}</td><td class="n"><button class="quiet" data-del="${s.id}">Elimina</button></td></tr>`).join('')}</tbody></table></div>`
+    ${list.length ? `<div class="tablewrap"><table class="metrics"><thead><tr><th>Persona</th><th>Data</th><th>Serie: aprile per rivederle, modificarle o rianalizzarle</th><th></th></tr></thead><tbody>
+      ${list.map((s) => `<tr><th scope="row"><a href="#report/${s.id}">${esc(s.person || 'Non indicata')}</a>${s.sets.some((k) => k.simulated) ? ' <span class="u">con simulazione</span>' : ''}</th><td>${fmtDate(s.createdAt)}</td><td>${s.sets.map((k) => `<a href="#result/${s.id}/${k.id}">${esc(setName(k))}</a>`).join('<br>')}</td><td class="n"><button class="quiet" data-del="${s.id}">Elimina</button></td></tr>`).join('')}</tbody></table></div>`
     : '<p class="empty">Le analisi salvate compariranno qui. <a href="#home">Scegli un esercizio</a></p>'}
     <p class="fine">Le analisi restano solo in questo browser su questo dispositivo. La copia di sicurezza si fa dalla pagina principale e contiene i risultati ma non i video.</p></div>`;
   root.querySelectorAll('[data-del]').forEach((b) => { b.onclick = async () => {

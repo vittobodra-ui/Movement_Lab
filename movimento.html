@@ -26,13 +26,14 @@
   </section>
   <div class="lists">
     <section><h1>Accosciate</h1><ul class="exlist" id="ex-squat"></ul></section>
+    <section><h1>Stacco, panca e trazioni</h1><ul class="exlist" id="ex-lift"></ul></section>
     <section><h1>Arti superiori</h1><ul class="exlist" id="ex-arm"></ul>
       <h2 class="sub">Altri angoli</h2><ul class="exlist"><li><a href="#capture/custom"><b>Angolo personalizzato</b><span>Tocca tre punti di repere sull’immagine e misura qualsiasi angolo.</span></a></li></ul></section>
   </div>
   <details class="settings"><summary>Impostazioni</summary>
     <div class="fields">
       <label>Riconoscimento <select id="s_model"><!--MODELS--></select></label>
-      <label>Conto alla rovescia <select id="s_countdown"><option value="0">Nessuno</option><option value="3">3 secondi</option><option value="5">5 secondi</option><option value="10">10 secondi</option></select></label>
+      <label>Conto alla rovescia <select id="s_countdown"><option value="0">0 secondi</option><option value="3">3 secondi</option><option value="5">5 secondi</option></select></label>
       <label>Durata della serie <select id="s_duration"><option value="0">La termino io</option><option value="15">15 secondi</option><option value="30">30 secondi</option><option value="60">60 secondi</option></select></label>
       <label>Riproduzione file video <select id="s_rate"><option value="1">Velocità normale</option><option value="0.5">Metà velocità</option><option value="0.25">Un quarto, per slow motion</option></select></label>
       <label class="check"><input type="checkbox" id="s_record"> Registra il video della serie</label>
@@ -60,12 +61,16 @@
     <tr><th scope="row">Flessione ed estensione di spalla</th><td>Di lato, altezza spalla</td><td>Braccio vicino alla camera, compenso del tronco</td></tr>
     <tr><th scope="row">Abduzione di spalla, press</th><td>Davanti o dietro, altezza spalla</td><td>Destra e sinistra insieme, inclinazione di tronco e spalle</td></tr>
     <tr><th scope="row">Gomito</th><td>Di lato o di fronte, con il braccio sul piano dell’immagine</td><td>Flessione ed eventuale movimento del braccio</td></tr>
+    <tr><th scope="row">Stacchi e rematore</th><td>Di lato, altezza anca</td><td>Anche, ginocchia, busto, barra rispetto al centro del piede, chiusura</td></tr>
+    <tr><th scope="row">Panca e piegamenti</th><td>Di lato all’altezza della panca; per la simmetria ai piedi della panca</td><td>Gomiti aperti, avambraccio verticale, profondità, bacino</td></tr>
+    <tr><th scope="row">Trazioni e lat machine</th><td>Da dietro, poco sotto le mani; di lato per lo slancio</td><td>Altezza del mento, simmetria delle braccia, slancio del corpo</td></tr>
     <tr><th scope="row">Rotazione di spalla a 90°</th><td>Di lato, con il braccio che punta verso la camera</td><td>Stima dell’avambraccio rispetto all’orizzontale</td></tr>
   </tbody></table></div>
   <h2>Prima di iniziare</h2>
   <ol>
     <li>Metti la camera in bolla, a 2,5-4 metri, e inquadra tutto il corpo. Per le braccia puoi avvicinarla, ma spalle e gomiti devono restare sempre in quadro.</li>
     <li>Scegli abiti aderenti, luce uniforme e nessun’altra persona nell’inquadratura.</li>
+    <li>Scegli in alto l’esercizio e da dove riprendi. Per gli squat la ripresa proposta è da dietro: mostra ginocchia, bacino e simmetria. Per la profondità e il busto riprendi anche di lato.</li>
     <li>Nelle viste frontale e posteriore premi “Calibra” con il soggetto fermo in piedi: il bacino sarà misurato rispetto alla posizione di riposo.</li>
     <li>Guarda i numeri in alto sull’immagine: se compare un avviso, il soggetto non è orientato come richiede la vista.</li>
   </ol>
@@ -77,6 +82,10 @@
     <li><b>Coscia sull’orizzontale:</b> sotto zero l’anca è più bassa del ginocchio.</li>
     <li><b>Valgo:</b> in profondità il valore sparisce, perché la coscia punta verso la camera. Resta la misura della tibia vista di fronte.</li>
   </ul>
+  <h2>Errori segnalati e tracciamento</h2>
+  <p>Dopo ogni serie trovi “Cosa abbiamo visto”: una figura schematica con la persona a tratto pieno sopra il riferimento tratteggiato e gli errori numerati, spiegati con parole semplici. Le soglie sono indicative: confermale guardando il video.</p>
+  <p>Nella revisione della serie scegli “Traccia” per seguire un punto, come il ginocchio o il centro del bacino, o un asse, come la tibia o il tronco. Il percorso compare sul video e sotto trovi cosa fa e quali errori riguarda.</p>
+  <p>Dall’archivio apri una serie per correggere esercizio, vista o lato e ricalcolare i dati dai punti salvati, oppure per rianalizzare il video da capo.</p>
   <h2>Limiti</h2>
   <ul>
     <li>Sono stime da video 2D senza marker, adatte a confrontare sessioni riprese allo stesso modo. Non sono misure di laboratorio e non costituiscono una diagnosi.</li>
@@ -96,7 +105,8 @@
 <section id="capture" class="capture" hidden>
   <header class="cap-head">
     <a class="btn" href="#home">Esercizi</a>
-    <h1 id="capName"></h1>
+    <label class="exsel">Esercizio <select id="exSel"></select></label>
+    <h1 id="capName" hidden></h1>
     <button id="toolsBtn" class="only-mobile" aria-expanded="false">Opzioni</button>
     <button id="addCam" class="only-pc">Aggiungi seconda camera</button>
   </header>
@@ -105,6 +115,7 @@
     <button id="snap">Fissa misura</button>
     <button id="calib" hidden>Calibra</button>
     <button id="metro" aria-pressed="false" hidden>Metronomo</button>
+    <div class="cd" role="group" aria-label="Conto alla rovescia"><span>Conto alla rovescia</span><button type="button" data-cd="0">0 s</button><button type="button" data-cd="3">3 s</button><button type="button" data-cd="5">5 s</button></div>
     <button id="go" class="go" disabled>Avvia la serie</button>
   </footer>
 </section>

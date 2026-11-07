@@ -161,6 +161,72 @@ export const M = {
     id: 'wristDiff', base: 'wristDiff', label: 'Differenza altezza polsi', unit: '% braccio', d: 0, quiet: true,
     f(ctx) { const P = ctx.P; if (!seen(ctx, 15, 16, 11, 13)) return null; const arm = dist(P[11], P[13]) + dist(P[13], P[15]); return { v: Math.abs(P[15].y - P[16].y) / (arm || 1) * 100 }; },
   }),
+  // Media della flessione dei due gomiti: guida il conteggio quando le braccia lavorano insieme.
+  elbowAvg: (o = {}) => ({
+    id: 'elbowAvg', base: 'elbowAvg', label: 'Flessione gomiti, media', unit: '°', d: 0, quiet: true, ...o,
+    f(ctx) {
+      const P = ctx.P, vals = [];
+      for (const s of ['L', 'R']) { const c = CH[s]; if (seen(ctx, c.sh, c.el, c.wr)) vals.push(flexion(P[c.sh], P[c.el], P[c.wr])); }
+      return vals.length ? { v: vals.reduce((a, b) => a + b, 0) / vals.length } : null;
+    },
+  }),
+  // Mento rispetto alle mani, in percentuale della lunghezza del braccio: positivo con il mento sopra.
+  chinBar: (o = {}) => ({
+    id: 'chinBar', base: 'chinBar', label: 'Mento sopra le mani', unit: '% braccio', d: 0, quiet: true, hint: 'Sopra zero: il mento supera l’altezza delle mani', ...o,
+    f(ctx) {
+      const P = ctx.P; if (P[0].v < ctx.minVis) return null;
+      const ws = [15, 16].filter((i) => P[i].v >= ctx.minVis); if (!ws.length) return null;
+      const c = P[11].v >= P[12].v ? CH.L : CH.R, arm = dist(P[c.sh], P[c.el]) + dist(P[c.el], P[c.wr]);
+      const wy = ws.reduce((a, i) => a + P[i].y, 0) / ws.length;
+      return { v: (wy - P[0].y) / (arm || 1) * 100 };
+    },
+  }),
+  // Barra (stimata dai polsi) davanti al centro del piede, di lato: positivo se è più avanti.
+  barFoot: (who = 'work') => ({
+    id: 'barFoot', base: 'barFoot', label: 'Barra davanti al centro del piede', unit: '% gamba', d: 0, who, hint: 'Vicino a zero: barra sopra il centro del piede',
+    f(ctx) {
+      const s = resolve(ctx, who), c = CH[s], P = ctx.P; if (!seen(ctx, c.wr, c.he, c.to) || !(ctx.leg > 0)) return null;
+      const foot = (P[c.he].x + P[c.to].x) / 2;
+      return { v: (P[c.wr].x - foot) * ctx.dir / ctx.leg * 100, side: s };
+    },
+  }),
+  shoulderBar: (who = 'work') => ({
+    id: 'shoulderBar', base: 'shoulderBar', label: 'Spalle davanti alla barra', unit: '% gamba', d: 0, who, quiet: true, hint: 'Sotto zero: spalle dietro la barra',
+    f(ctx) { const s = resolve(ctx, who), c = CH[s], P = ctx.P; if (!seen(ctx, c.sh, c.wr) || !(ctx.leg > 0)) return null; return { v: (P[c.sh].x - P[c.wr].x) * ctx.dir / ctx.leg * 100, side: s }; },
+  }),
+  // Angolo tra tronco e braccio visto di lato, alla spalla: nella panca e nei piegamenti stima quanto sono aperti i gomiti.
+  armTrunk: (who = 'near', o = {}) => ({
+    id: 'armTrunk', base: 'armTrunk', label: 'Braccio rispetto al tronco', unit: '°', d: 0, who, hint: 'Valori alti: gomiti aperti, lontani dal corpo', ...o,
+    f(ctx) { const s = resolve(ctx, who), c = CH[s], P = ctx.P; if (!seen(ctx, c.sh, c.el, c.hip)) return null; return { v: 180 - flexion(P[c.hip], P[c.sh], P[c.el]), side: s, draw: { at: P[c.sh], r1: sub(P[c.hip], P[c.sh]), r2: sub(P[c.el], P[c.sh]) } }; },
+  }),
+  // Avambraccio rispetto alla verticale, di lato. Positivo con il polso verso la testa.
+  forearmVert: (who = 'near') => ({
+    id: 'forearmVert', base: 'forearmVert', label: 'Avambraccio sulla verticale', unit: '°', d: 0, who, hint: 'Vicino a zero: polso sopra il gomito; sopra zero: polso verso la testa',
+    f(ctx) {
+      const s = resolve(ctx, who), c = CH[s], P = ctx.P; if (!seen(ctx, c.el, c.wr, c.sh, c.hip)) return null;
+      const hs = Math.sign(P[c.sh].x - P[c.hip].x) || 1, E = P[c.el], W = P[c.wr];
+      return { v: Math.atan2((W.x - E.x) * hs, E.y - W.y) * DEG, side: s, draw: { at: E, r1: UP, r2: sub(W, E), guide: true } };
+    },
+  }),
+  forearmFront: (who, o = {}) => ({
+    id: `forearmFront_${who}`, base: 'forearmFront', label: 'Polso fuori dal gomito (+)', unit: '°', d: 0, who, quiet: true, hint: 'Avambraccio rispetto alla verticale; sopra zero il polso è più largo del gomito', ...o,
+    f(ctx) {
+      const s = who, c = CH[s], oc = CH[other(s)], P = ctx.P; if (!seen(ctx, c.el, c.wr, c.sh, oc.sh)) return null;
+      const lateral = Math.sign(P[c.sh].x - P[oc.sh].x) || 1;
+      return { v: Math.atan2((P[c.wr].x - P[c.el].x) * lateral, P[c.el].y - P[c.wr].y) * DEG, side: s };
+    },
+  }),
+  // Anca rispetto alla linea spalla-ginocchio o spalla-caviglia, in percentuale della gamba: positivo se più in alto.
+  bodyLine: (to = 'ankle', o = {}) => ({
+    id: 'bodyLine', base: 'bodyLine', label: to === 'ankle' ? 'Bacino rispetto alla linea spalla-caviglia' : 'Bacino rispetto alla linea spalla-ginocchio', unit: '% gamba', d: 0, quiet: true, hint: 'Sopra zero: bacino più alto della linea', ...o,
+    f(ctx) {
+      const s = ctx.near, c = CH[s], P = ctx.P, end = to === 'ankle' ? c.an : c.kn; if (!seen(ctx, c.sh, c.hip, end)) return null;
+      const A = P[c.sh], B = P[end], H = P[c.hip], L = dist(A, B) || 1, leg = ctx.leg > 0 ? ctx.leg : dist(P[c.hip], P[c.an]) || 1;
+      let d = ((B.x - A.x) * (H.y - A.y) - (B.y - A.y) * (H.x - A.x)) / L; // con segno: verso dipende dall'ordine dei punti
+      if (B.x < A.x) d = -d;
+      return { v: -d / leg * 100 };
+    },
+  }),
   custom: (a, b, c, ref = null, o = {}) => ({
     id: 'custom', base: 'custom', label: o.label ?? 'Angolo scelto', unit: '°', d: 0, ...o,
     f(ctx) {
@@ -195,15 +261,15 @@ export const PROTOCOLS = [
   { id: 'squat', group: 'squat', name: 'Squat a corpo libero', hint: 'Il riferimento per valutare profondità e allineamento.', path: 'hip', sim: 'squat', views: { side: squatSide(), front: squatFront(), rear: squatFront() } },
   { id: 'highbar', group: 'squat', name: 'Back squat, barra alta', hint: 'La traccia segue le spalle come stima della barra.', path: 'shoulders', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront(), rear: squatFront() } },
   { id: 'lowbar', group: 'squat', name: 'Back squat, barra bassa', hint: 'Di solito tronco più inclinato e tibia più verticale.', path: 'shoulders', sim: 'squat', load: true, views: { side: squatSide(), rear: squatFront() } },
-  { id: 'frontsquat', group: 'squat', name: 'Front squat', hint: 'Controlla il tronco e l’avanzamento del ginocchio.', path: 'shoulders', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront() } },
-  { id: 'goblet', group: 'squat', name: 'Goblet squat', hint: 'Il peso può coprire polsi e gomiti, non le gambe.', path: 'hip', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront() } },
+  { id: 'frontsquat', group: 'squat', name: 'Front squat', hint: 'Controlla il tronco e l’avanzamento del ginocchio.', path: 'shoulders', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront(), rear: squatFront() } },
+  { id: 'goblet', group: 'squat', name: 'Goblet squat', hint: 'Il peso può coprire polsi e gomiti, non le gambe.', path: 'hip', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront(), rear: squatFront() } },
   { id: 'sumo', group: 'squat', name: 'Sumo squat', hint: 'Meglio la vista frontale, con i piedi larghi e extraruotati.', path: 'hip', sim: 'squat', load: true, views: { front: squatFront(), rear: squatFront(), side: squatSide() } },
-  { id: 'box', group: 'squat', name: 'Box squat', hint: 'Il box può coprire le anche di lato: lascialo basso nell’inquadratura.', path: 'hip', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront() } },
-  { id: 'overhead', group: 'squat', name: 'Overhead squat', hint: 'Valuta mobilità di spalle, anche e caviglie insieme.', path: 'wrists', sim: 'overhead', views: { side: squatSide({ extra: [M.armVertical('near')] }), front: squatFront({ extra: [M.shoulderAbd('L', { quiet: true }), M.shoulderAbd('R', { quiet: true }), M.wristDiff()] }) } },
+  { id: 'box', group: 'squat', name: 'Box squat', hint: 'Il box può coprire le anche di lato: lascialo basso nell’inquadratura.', path: 'hip', sim: 'squat', load: true, views: { side: squatSide(), front: squatFront(), rear: squatFront() } },
+  { id: 'overhead', group: 'squat', name: 'Overhead squat', hint: 'Valuta mobilità di spalle, anche e caviglie insieme.', path: 'wrists', sim: 'overhead', views: { side: squatSide({ extra: [M.armVertical('near')] }), front: squatFront({ extra: [M.shoulderAbd('L', { quiet: true }), M.shoulderAbd('R', { quiet: true }), M.wristDiff()] }), rear: squatFront({ extra: [M.shoulderAbd('L', { quiet: true }), M.shoulderAbd('R', { quiet: true }), M.wristDiff()] }) } },
   { id: 'single', group: 'squat', name: 'Squat monopodalico', hint: 'La gamba di lavoro è quella con il piede più basso.', path: 'hip', sim: 'single', views: { front: unilateralFront(), rear: unilateralFront(), side: squatSide({ legPick: 'lower' }) } },
-  { id: 'split', group: 'squat', name: 'Split squat', hint: 'Di lato misura la gamba avanti.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: { ...unilateralFront(), legPick: 'select' } } },
-  { id: 'bulgarian', group: 'squat', name: 'Bulgarian split squat', hint: 'Di lato misura la gamba avanti, con il piede dietro in appoggio.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: unilateralFront() } },
-  { id: 'lunge', group: 'squat', name: 'Affondo', hint: 'Riprendi di lato. Scegli la gamba davanti per la vista frontale.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: { ...unilateralFront(), legPick: 'select' } } },
+  { id: 'split', group: 'squat', name: 'Split squat', hint: 'Da dietro ginocchio e bacino, di lato la profondità.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: { ...unilateralFront(), legPick: 'select' }, rear: { ...unilateralFront(), legPick: 'select' } } },
+  { id: 'bulgarian', group: 'squat', name: 'Bulgarian split squat', hint: 'Di lato misura la gamba avanti, con il piede dietro in appoggio.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: unilateralFront(), rear: unilateralFront() } },
+  { id: 'lunge', group: 'squat', name: 'Affondo', hint: 'Da dietro ginocchio e bacino, di lato la profondità. Indica la gamba davanti.', path: 'hip', sim: 'lunge', load: true, views: { side: squatSide({ legPick: 'front', extra: [M.knee('rest', { id: 'kneeRest', label: 'Ginocchio gamba dietro', quiet: true })] }), front: { ...unilateralFront(), legPick: 'select' }, rear: { ...unilateralFront(), legPick: 'select' } } },
 
   { id: 'flex', group: 'arm', name: 'Flessione di spalla', hint: 'Camera di lato. Misura il braccio più vicino alla camera.', path: 'wrists', sim: 'flex', views: { side: { metrics: [M.shoulderSag('near'), M.elbow('near', { quiet: true }), ...shoulderExtra], primary: 'shoulder', driver: 'shoulder', minRange: 25, peakName: 'Massima flessione', startName: 'Braccio lungo il corpo' } } },
   { id: 'ext', group: 'arm', name: 'Estensione di spalla', hint: 'Camera di lato. Il valore è negativo quando il braccio va indietro.', path: 'wrists', sim: 'ext', views: { side: { metrics: [M.shoulderSag('near'), M.elbow('near', { quiet: true }), ...shoulderExtra], primary: 'shoulder', driver: 'shoulder', driverSign: -1, minRange: 12, peakName: 'Massima estensione', startName: 'Braccio lungo il corpo' } } },
@@ -213,6 +279,50 @@ export const PROTOCOLS = [
   { id: 'press', group: 'arm', name: 'Press sopra la testa', hint: 'Camera davanti o dietro: gomiti, altezza delle braccia e simmetria.', path: 'wrists', sim: 'press', load: true, views: { front: pressView(), rear: pressView() } },
   { id: 'wrist', group: 'arm', name: 'Polso', hint: 'Stima: i punti della mano sono poco precisi. Avvicina la camera.', estimate: true, path: null, sim: 'wrist', views: { side: { metrics: [M.wrist('near'), M.elbow('near', { quiet: true })], primary: 'wrist', driver: 'wrist', minRange: 15, peakName: 'Massima deviazione', startName: 'Polso allineato' } } },
 ];
+/* ---------- stacco, panca, trazioni ---------- */
+const hingeSide = (o = {}) => ({
+  metrics: [M.hip('work'), M.knee('work'), M.trunk(), M.tibia('work', { quiet: true }), M.thigh('work'), M.barFoot('work'), M.shoulderBar('work'), ...(o.extra ?? [])],
+  primary: 'hip', driver: 'hip', minRange: 30, legPick: o.legPick ?? 'near', peakName: o.peakName ?? 'Posizione bassa', startName: 'In piedi, a fine tirata',
+});
+const hingeFront = () => ({ ...squatFront({ extra: [M.wristDiff()] }), minRange: 6, peakName: 'Posizione bassa', startName: 'In piedi, a fine tirata' });
+const pressSide = (o = {}) => ({
+  metrics: [M.elbow('near'), M.armTrunk('near'), ...(o.forearm === false ? [] : [M.forearmVert('near')]), M.bodyLine(o.line ?? 'knee'), ...(o.extra ?? [])],
+  primary: 'elbow', driver: 'elbow', minRange: 30, peakName: o.peakName ?? 'Barra al petto', startName: 'Braccia distese',
+});
+const pressFeet = () => ({
+  metrics: [M.elbow('L'), M.elbow('R'), M.elbowAvg(), M.forearmFront('L'), M.forearmFront('R'), M.wristDiff()],
+  primary: 'elbow_L', second: 'elbow_R', driver: 'elbowAvg', minRange: 30, peakName: 'Barra al petto', startName: 'Braccia distese',
+});
+const pullFront = () => ({
+  metrics: [M.elbow('L'), M.elbow('R'), M.elbowAvg(), M.chinBar(), M.shoulderTilt(), M.trunkLateral(), M.wristDiff()],
+  primary: 'elbow_L', second: 'elbow_R', driver: 'elbowAvg', minRange: 40, peakName: 'In alto', startName: 'Appeso a braccia distese',
+});
+const pullSide = () => ({
+  metrics: [M.elbow('near'), M.chinBar(), M.trunk({ label: 'Corpo sulla verticale', quiet: true }), M.hip('near', { quiet: true, label: 'Flessione anca, gambe in avanti' })],
+  primary: 'elbow', driver: 'elbow', minRange: 40, peakName: 'In alto', startName: 'Appeso a braccia distese',
+});
+const BENCH_LABELS = { side: 'Laterale, all’altezza della panca', front: 'Ai piedi della panca' };
+const LIFT = [
+  { id: 'deadlift', family: 'deadlift', name: 'Stacco da terra', hint: 'Di lato: percorso della barra, anche e schiena. Da dietro: simmetria.', path: 'wrists', sim: 'deadlift', load: true, defaultView: 'side', views: { side: hingeSide(), rear: hingeFront(), front: hingeFront() } },
+  { id: 'sumodl', family: 'deadlift', name: 'Stacco sumo', hint: 'Piedi larghi: di lato la barra, da davanti o da dietro le ginocchia.', path: 'wrists', sim: 'sumodl', load: true, defaultView: 'side', views: { side: hingeSide(), front: hingeFront(), rear: hingeFront() } },
+  { id: 'trapbar', family: 'deadlift', name: 'Stacco con trap bar', hint: 'Busto più dritto e ginocchia più piegate dello stacco classico.', path: 'wrists', sim: 'trapbar', load: true, defaultView: 'side', views: { side: hingeSide(), rear: hingeFront(), front: hingeFront() } },
+  { id: 'rdl', family: 'rdl', name: 'Stacco rumeno', hint: 'Si piega dalle anche con le ginocchia poco flesse: riprendi di lato.', path: 'wrists', sim: 'rdl', load: true, defaultView: 'side', views: { side: hingeSide(), rear: hingeFront() } },
+  { id: 'stiff', family: 'rdl', name: 'Stacco a gambe tese', hint: 'Ginocchia quasi tese: conta la mobilità della parte posteriore della coscia.', path: 'wrists', sim: 'stiff', load: true, defaultView: 'side', views: { side: hingeSide(), rear: hingeFront() } },
+  { id: 'slrdl', family: 'slrdl', name: 'Stacco rumeno su una gamba', hint: 'Di lato misura la gamba d’appoggio, quella con il piede a terra.', path: 'wrists', sim: 'slrdl', load: true, defaultView: 'side',
+    views: { side: { metrics: [M.trunk({ label: 'Busto sulla verticale' }), M.knee('work', { label: 'Ginocchio d’appoggio' }), M.hip('work')], primary: 'trunk', driver: 'trunk', minRange: 30, legPick: 'lower', peakName: 'Posizione bassa', startName: 'In piedi' } } },
+  { id: 'bench', family: 'bench', name: 'Panca piana', hint: 'Camera di lato all’altezza della panca, oppure ai piedi della panca per la simmetria.', path: 'wrists', sim: 'bench', load: true, defaultView: 'side', viewLabels: BENCH_LABELS, views: { side: pressSide(), front: pressFeet() } },
+  { id: 'incline', family: 'bench', name: 'Panca inclinata', hint: 'Di lato: gomiti, avambracci e percorso della barra.', path: 'wrists', sim: 'bench', load: true, defaultView: 'side', viewLabels: BENCH_LABELS, views: { side: pressSide(), front: pressFeet() } },
+  { id: 'closegrip', family: 'bench', name: 'Panca presa stretta', hint: 'Gomiti più vicini al corpo della panca classica.', path: 'wrists', sim: 'bench', load: true, defaultView: 'side', viewLabels: BENCH_LABELS, views: { side: pressSide(), front: pressFeet() } },
+  { id: 'dbbench', family: 'bench', name: 'Distensioni con manubri', hint: 'Ai piedi della panca si vede se un braccio scende o sale diversamente.', path: 'wrists', sim: 'bench', load: true, defaultView: 'side', viewLabels: BENCH_LABELS, views: { side: pressSide(), front: pressFeet() } },
+  { id: 'pushup', family: 'pushup', name: 'Piegamenti sulle braccia', hint: 'Di lato, a terra: linea del corpo, gomiti e profondità.', path: 'shoulders', sim: 'pushup', defaultView: 'side', views: { side: pressSide({ line: 'ankle', forearm: false, peakName: 'Petto in basso' }) } },
+  { id: 'pullup', family: 'pull', name: 'Trazioni, presa prona', hint: 'Da dietro: simmetria e spalle. Di lato: slancio del corpo.', path: 'shoulders', sim: 'pull', load: true, defaultView: 'rear', views: { rear: pullFront(), front: pullFront(), side: pullSide() } },
+  { id: 'chinup', family: 'pull', name: 'Trazioni, presa supina', hint: 'Palmi verso di sé: lavora di più il bicipite.', path: 'shoulders', sim: 'pull', load: true, defaultView: 'rear', views: { rear: pullFront(), front: pullFront(), side: pullSide() } },
+  { id: 'neutral', family: 'pull', name: 'Trazioni, presa neutra', hint: 'Palmi uno verso l’altro.', path: 'shoulders', sim: 'pull', load: true, defaultView: 'rear', views: { rear: pullFront(), front: pullFront(), side: pullSide() } },
+  { id: 'latpull', family: 'latpull', name: 'Lat machine', hint: 'Seduto: da dietro la simmetria, di lato quanto si inclina il busto.', path: 'shoulders', sim: 'pull', load: true, defaultView: 'rear', views: { rear: pullFront(), front: pullFront(), side: pullSide() } },
+  { id: 'row', family: 'row', name: 'Rematore con bilanciere', hint: 'Di lato: busto fermo e gomiti che tirano indietro.', path: 'wrists', sim: 'row', load: true, defaultView: 'side',
+    views: { side: { metrics: [M.elbow('near'), M.trunk({ label: 'Busto sulla verticale' }), M.shoulderSag('near', { label: 'Braccio rispetto al tronco', quiet: true }), M.knee('near', { quiet: true })], primary: 'elbow', driver: 'elbow', minRange: 35, peakName: 'Gomiti indietro', startName: 'Braccia distese' } } },
+].map((p) => ({ ...p, group: 'lift' }));
+PROTOCOLS.push(...LIFT);
 function abdView() {
   return { metrics: [M.shoulderAbd('L'), M.shoulderAbd('R'), M.elbow('L', { quiet: true }), M.elbow('R', { quiet: true }), M.trunkLateral(), M.shoulderTilt()], primary: 'abd_L', second: 'abd_R', perSide: { L: 'abd_L', R: 'abd_R' }, minRange: 25, peakName: 'Massima abduzione', startName: 'Braccia lungo il corpo' };
 }
@@ -231,4 +341,7 @@ function customView(a, b, c, ref) {
 }
 export const protocolById = (id, spec) => (id === 'custom' ? customProtocol(spec?.a ?? 23, spec?.b ?? 25, spec?.c ?? 27, spec?.ref ?? null) : PROTOCOLS.find((p) => p.id === id));
 export const VIEW_NAMES = { side: 'Laterale', front: 'Frontale', rear: 'Posteriore' };
+export const VIEW_ORDER = ['rear', 'front', 'side'];
+export const defaultView = (p) => (p.defaultView && p.views[p.defaultView] ? p.defaultView : p.group === 'squat' && p.views.rear ? 'rear' : Object.keys(p.views)[0]);
+export const viewList = (p) => VIEW_ORDER.filter((v) => p.views[v]);
 export const metricLabel = (m, side) => (side ? `${m.label} ${sideName(side)}` : m.label);
