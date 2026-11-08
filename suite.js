@@ -35,13 +35,14 @@ function updateClientHint(clients) {
   const found = clients.find((x) => x.key === key);
   const sheet = $('openSheet');
   sheet.hidden = !name; sheet.href = `#cliente/${encodeURIComponent(name)}`;
-  const n = found ? found.counts.corsa + found.counts.movimento + found.counts.stabilometria : 0;
+  const n = found ? Object.values(found.counts).reduce((a, b) => a + b, 0) : 0;
   $('clientHint').textContent = !name ? 'Il nome scelto qui compare già compilato in tutti i programmi.'
     : n ? `${found.name}: ${n === 1 ? 'una analisi salvata' : `${n} analisi salvate`}, l’ultima il ${day(found.last)}.` : `${name}: nessuna analisi salvata finora.`;
 }
 function analysisDetail(a) {
   if (a.mod === 'corsa') return [a.doc.speed ? `${a.doc.speed} km/h` : null, Object.keys(a.doc.views ?? {}).map((v) => VIEW[v]).join(', ')].filter(Boolean).join(', ');
   if (a.mod === 'movimento') return [...new Set(a.doc.sets.map((s) => s.name))].join(', ');
+  if (a.mod === 'bici') return [a.doc.bike, `${a.doc.views?.side?.cycles ?? 0} giri`].filter(Boolean).join(', ');
   return a.doc.tests.map((t) => t.label).join(', ');
 }
 const isSim = (a) => a.mod === 'movimento' ? a.doc.sets.some((s) => s.simulated) : !!a.doc.simulated;
@@ -161,7 +162,7 @@ async function doImport(e) {
   msg.textContent = 'Importo…';
   try {
     const r = await importAny(JSON.parse(await f.text()));
-    const parts = [r.corsa ? `${r.corsa} di corsa` : null, r.movimento ? `${r.movimento} di accosciate e braccia` : null, r.stabilometria ? `${r.stabilometria} di stabilometria` : null].filter(Boolean);
+    const parts = [r.corsa ? `${r.corsa} di corsa` : null, r.movimento ? `${r.movimento} di accosciate e braccia` : null, r.stabilometria ? `${r.stabilometria} di stabilometria` : null, r.bici ? `${r.bici} di bici` : null].filter(Boolean);
     msg.textContent = parts.length ? `Importate: ${parts.join(', ')}.` : 'Importati i dati dei clienti.';
     await renderHome();
   } catch { msg.textContent = 'Questo file non è una copia di Movement Lab né un archivio delle app precedenti.'; }
@@ -187,6 +188,13 @@ async function renderClients() {
 
 /* ---------- scheda cliente ---------- */
 const diffCell = (p, unit, d = 0) => (p ? (p.level ? `<span class="asym lv${p.level}">${A.mark(p.level)} ${it(p.diff, d)}${unit}</span><span class="asym-note">più ${p.side === 'L' ? 'a sinistra' : 'a destra'}</span>` : `${it(p.diff, d)}${unit}`) : '–');
+function biciTable(list) {
+  const body = list.map((a) => {
+    const S = a.doc.views?.side?.values ?? {}, F = a.doc.views?.front?.values ?? {};
+    return `<tr><th scope="row"><a href="${reportHref(a)}">${day(a.at)}</a>${a.doc.simulated ? '<br><span class="u">simulazione</span>' : ''}</th><td>${esc(a.doc.bike) || '–'}</td><td class="n">${it(S.kneeExt)}</td><td class="n">${it(S.hipMin)}</td><td class="n">${it(S.trunk)}</td><td class="n">${it(S.kops)}</td><td class="n">${F.kneeTravel_L != null ? `${it(F.kneeTravel_L)} / ${it(F.kneeTravel_R)}` : '–'}</td></tr>`;
+  }).join('');
+  return `<section class="sheet-sec"><h2>Bici</h2><div class="tablewrap"><table class="metrics"><thead><tr><th>Data</th><th>Bici</th><th class="n">Ginocchio in basso °</th><th class="n">Anca in alto °</th><th class="n">Busto °</th><th class="n">Ginocchio sul pedale mm</th><th class="n">Ginocchi di lato sin / des mm</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+}
 function corsaTable(list) {
   const body = list.map((a) => {
     const V = a.doc.views ?? {}, side = V.side?.metrics, fr = (V.rear ?? V.front)?.metrics, val = (m, k) => m?.[k]?.mean;
@@ -242,7 +250,7 @@ async function renderSheet(rawName) {
   const byMod = (m) => c.analyses.filter((a) => a.mod === m);
   const latest = {}; for (const a of c.analyses) latest[a.mod] ??= a;
   const flags = Object.values(latest).flatMap((a) => A.countFlags(a.mod, a.doc).map((f) => ({ ...f, label: `${MODULE_NAMES[a.mod]}, ${day(a.at)}. ${f.label}` })));
-  const usedKeys = [...new Set(Object.keys(latest).flatMap((m) => (m === 'corsa' ? A.CORSA_KEYS : m === 'movimento' ? A.MOVIMENTO_KEYS : A.STABILO_KEYS)))];
+  const usedKeys = [...new Set(Object.keys(latest).flatMap((m) => (m === 'corsa' ? A.CORSA_KEYS : m === 'movimento' ? A.MOVIMENTO_KEYS : m === 'stabilometria' ? A.STABILO_KEYS : [])))];
   const facts = [c.birth ? `Nato/a nel ${esc(c.birth)}` : null, c.height ? `${esc(c.height)} cm` : null].filter(Boolean).join(', ');
   const isCurrent = normName(LAB.client().name) === key;
   root.innerHTML = `<div class="wide report-sheet">
@@ -258,6 +266,7 @@ async function renderSheet(rawName) {
     ${byMod('corsa').length ? corsaTable(byMod('corsa')) : ''}
     ${byMod('movimento').length ? movimentoTable(byMod('movimento')) : ''}
     ${byMod('stabilometria').length ? stabiloTable(byMod('stabilometria')) : ''}
+    ${byMod('bici').length ? biciTable(byMod('bici')) : ''}
     ${c.analyses.length ? '<p class="fine disclaimer">Stime da video 2D e da pedana con 4 sensori, utili per seguire la stessa persona nel tempo con lo stesso protocollo. Non sono misure di laboratorio e non costituiscono una diagnosi. Ogni data apre il report completo.</p>' : '<p class="empty">Nessuna analisi salvata per questo cliente.</p>'}
   </div>`;
   root.querySelector('#printSheet').onclick = () => print();

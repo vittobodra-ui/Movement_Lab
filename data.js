@@ -4,10 +4,11 @@ const DEF = {
   corsa: { db: 'analisi-corsa', stores: { sessions: 'id' }, main: 'sessions' },
   movimento: { db: 'analisi-movimento', stores: { sessions: 'id', media: 'setId' }, main: 'sessions' },
   stabilometria: { db: 'analisi-stabilometrica', stores: { exams: 'id' }, main: 'exams' },
+  bici: { db: 'analisi-bici', stores: { sessions: 'id' }, main: 'sessions' },
   lab: { db: 'laboratorio-movimento', stores: { clients: 'key' }, main: 'clients' },
 };
-export const MODULES = ['corsa', 'movimento', 'stabilometria'];
-export const MODULE_NAMES = { corsa: 'Corsa', movimento: 'Accosciate e braccia', stabilometria: 'Stabilometria' };
+export const MODULES = ['corsa', 'movimento', 'stabilometria', 'bici'];
+export const MODULE_NAMES = { corsa: 'Corsa', movimento: 'Accosciate e braccia', stabilometria: 'Stabilometria', bici: 'Bici' };
 
 function open(mod) {
   const d = DEF[mod];
@@ -32,7 +33,7 @@ export const normName = (s) => String(s ?? '').trim().replace(/\s+/g, ' ').toLoc
 export const cleanName = (s) => String(s ?? '').trim().replace(/\s+/g, ' ');
 export const personOf = (mod, doc) => (mod === 'stabilometria' ? doc.client?.name : doc.person) ?? '';
 function setPerson(mod, doc, name) { if (mod === 'stabilometria') doc.client = { ...(doc.client ?? {}), name }; else doc.person = name; }
-const hasContent = (mod, d) => (mod === 'corsa' ? !!d.views : mod === 'movimento' ? d.sets?.length > 0 : d.tests?.length > 0);
+const hasContent = (mod, d) => (mod === 'corsa' ? !!d.views : mod === 'movimento' ? d.sets?.length > 0 : mod === 'bici' ? !!d.views?.side : d.tests?.length > 0);
 
 // Tutte le analisi salvate, dalla più recente.
 export async function allAnalyses() {
@@ -56,7 +57,7 @@ export async function clientList(analyses = null) {
   const list = analyses ?? await allAnalyses();
   const reg = await readAll('lab').catch(() => []);
   const map = new Map();
-  const get = (key, name) => { if (!map.has(key)) map.set(key, { key, name, birth: '', height: '', counts: { corsa: 0, movimento: 0, stabilometria: 0 }, last: 0, analyses: [] }); return map.get(key); };
+  const get = (key, name) => { if (!map.has(key)) map.set(key, { key, name, birth: '', height: '', counts: { corsa: 0, movimento: 0, stabilometria: 0, bici: 0 }, last: 0, analyses: [] }); return map.get(key); };
   for (const r of reg) { const c = get(r.key, r.name); c.birth = r.birth ?? ''; c.height = r.height ?? ''; c.last = 0; }
   for (const a of list) {
     if (!a.key) continue;
@@ -94,19 +95,20 @@ export async function deleteClient(name) {
 /* ---------- copia di sicurezza ---------- */
 export const BACKUP_FORMAT = 'laboratorio-movimento';
 export async function exportAll() {
-  return { format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), clients: await readAll('lab').catch(() => []), corsa: await readAll('corsa').catch(() => []), movimento: await readAll('movimento').catch(() => []), stabilometria: await readAll('stabilometria').catch(() => []) };
+  return { format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), clients: await readAll('lab').catch(() => []), corsa: await readAll('corsa').catch(() => []), movimento: await readAll('movimento').catch(() => []), stabilometria: await readAll('stabilometria').catch(() => []), bici: await readAll('bici').catch(() => []) };
 }
 const validFor = {
-  corsa: (d) => d && d.id != null && d.views && typeof d.views === 'object',
+  bici: (d) => d && d.id != null && d.kind === 'bici' && d.views && typeof d.views === 'object',
+  corsa: (d) => d && d.id != null && d.kind !== 'bici' && d.views && typeof d.views === 'object',
   movimento: (d) => d && d.id != null && Array.isArray(d.sets),
   stabilometria: (d) => d && d.id != null && Array.isArray(d.tests),
 };
 // Accetta la copia unica e anche i file esportati dalle singole app di prima.
 export async function importAny(data) {
-  const buckets = { corsa: [], movimento: [], stabilometria: [] };
+  const buckets = { corsa: [], movimento: [], stabilometria: [], bici: [] };
   let clients = [];
   if (Array.isArray(data)) {
-    for (const d of data) { if (validFor.corsa(d)) buckets.corsa.push(d); else if (validFor.movimento(d)) buckets.movimento.push(d); else if (validFor.stabilometria(d)) buckets.stabilometria.push(d); }
+    for (const d of data) { if (validFor.bici(d)) buckets.bici.push(d); else if (validFor.corsa(d)) buckets.corsa.push(d); else if (validFor.movimento(d)) buckets.movimento.push(d); else if (validFor.stabilometria(d)) buckets.stabilometria.push(d); }
   } else if (data?.format === BACKUP_FORMAT) {
     for (const mod of MODULES) buckets[mod] = (data[mod] ?? []).filter(validFor[mod]);
     clients = (data.clients ?? []).filter((c) => c?.key && c?.name);
@@ -119,5 +121,5 @@ export async function importAny(data) {
     await putMany(mod, buckets[mod]);
   }
   if (clients.length) await tx('lab', 'clients', 'readwrite', (o) => { for (const c of clients) o.put(c); });
-  return { corsa: buckets.corsa.length, movimento: buckets.movimento.length, stabilometria: buckets.stabilometria.length, clients: clients.length };
+  return { corsa: buckets.corsa.length, movimento: buckets.movimento.length, stabilometria: buckets.stabilometria.length, bici: buckets.bici.length, clients: clients.length };
 }

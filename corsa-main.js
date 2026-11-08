@@ -4,6 +4,7 @@ import { createPose } from './engine.js';
 import { pair, level, mark, sideWord, thresholds } from './asym.js';
 import { saveSession } from './corsa-store.js';
 import { renderArchive, renderReport, VIEW_NAMES } from './corsa-report.js';
+import { wheelLimits } from './corsa-ruota.js';
 
 const $ = (id) => document.getElementById(id);
 const NOTE = (m, err = false) => { const s = $('status'); s.textContent = m; s.classList.toggle('err', err); };
@@ -372,6 +373,67 @@ function renderRunner() {
   const fa = [views.rear, views.front].find((s) => s.analyzer.events.length)?.analyzer;
   const lvOf = (key) => { const p = fa ? livePair(fa, key, 1, LIMITS.smallAngle) : null; return p ? mark(p.level) : ''; };
   $('rDropA').textContent = lvOf('drop'); $('rValA').textContent = lvOf('valgus');
+  const items = runnerFaults(c, lo);
+  const has = (k) => items.some((i) => i.key.startsWith(k));
+  $('rmDrop').classList.toggle('off', has('drop')); $('rmVal').classList.toggle('off', has('valgus')); $('rmOver').classList.toggle('off', has('over'));
+  // Al corridore bastano due indicazioni alla volta, le più importanti.
+  const PRIO = ['over', 'valgus', 'drop', 'trunk', 'cad', 'osc', 'cross'], rank = (i) => PRIO.findIndex((p) => i.key.startsWith(p));
+  const top = [...items].sort((a, b) => rank(a) - rank(b)).slice(0, 2);
+  const html = top.map((i) => `<li>${i.cue}</li>`).join('') + (items.length > 2 ? `<li class="more">e altre ${items.length - 2}</li>` : '');
+  if ($('rAlerts').innerHTML !== html) $('rAlerts').innerHTML = html;
+  $('runner').classList.toggle('alert', items.length > 0);
+  drawRunnerFig([...items].sort((a, b) => rank(a) - rank(b)));
+}
+
+/* ---------- avvisi per il corridore: stesse soglie della ruota della corsa ---------- */
+const LEG = { L: [[23, 25], [25, 27], [27, 31]], R: [[24, 26], [26, 28], [28, 32]] };
+const TRUNK = [[11, 23], [12, 24], [11, 12]], PELVIS = [[23, 24]];
+function runnerFaults(cad, cadMin) {
+  const T = wheelLimits(), s = views.side.analyzer, out = [];
+  const lim = (id, d) => goal(id) ?? d;
+  const over = s.live('overstride'), osc = s.live('oscillation'), tr = s.live('trunk');
+  if (over != null && over > lim('g_over', T.overstride)) out.push({ key: 'over', cue: 'Passo più corto: piede sotto il corpo', view: 'side', segs: [...LEG.L, ...LEG.R] });
+  if (osc != null && osc > T.oscillation) out.push({ key: 'osc', cue: 'Meno rimbalzo, corri più radente', view: 'side', segs: TRUNK });
+  if (tr != null && tr > T.trunkForward) out.push({ key: 'trunk', cue: 'Busto più dritto', view: 'side', segs: TRUNK });
+  else if (tr != null && tr < T.trunkBack) out.push({ key: 'trunk', cue: 'Busto appena in avanti, non indietro', view: 'side', segs: TRUNK });
+  if (cad != null && cadMin != null && cad < cadMin) out.push({ key: 'cad', cue: 'Passi più rapidi', view: 'any', segs: [] });
+  for (const sd of ['L', 'R']) {
+    const v = frontal(`valgus_${sd}`), d = frontal(`drop_${sd}`);
+    if (v != null && v > lim('g_valgus', T.valgus)) out.push({ key: `valgus_${sd}`, cue: `Ginocchio ${sd === 'L' ? 'sinistro' : 'destro'} in fuori`, view: 'front', segs: LEG[sd].slice(0, 2) });
+    if (d != null && d > lim('g_drop', 6)) out.push({ key: `drop_${sd}`, cue: `Bacino in piano sull’appoggio ${sd === 'L' ? 'sinistro' : 'destro'}`, view: 'front', segs: PELVIS });
+  }
+  const cross = ['rear', 'front'].map((v) => views[v].analyzer.events.length ? views[v].analyzer.derived(40).crossover : null).find((x) => x != null);
+  if (cross != null && cross > 25) out.push({ key: 'cross', cue: 'Piedi meno incrociati', view: 'front', segs: [[27, 31], [28, 32]] });
+  return out;
+}
+// Figura dal vivo, ingrandita sul corridore: bianca su fondo scuro, in rosso le parti con un errore.
+function drawRunnerFig(items) {
+  const cv = $('rFig'), W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
+  const dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  const first = items.find((i) => i.view !== 'any')?.view;
+  const order = first === 'front' && (views.rear.lastLm || views.front.lastLm) ? ['rear', 'front', 'side'] : ['side', 'rear', 'front'];
+  const v = order.find((k) => views[k].lastLm);
+  if (!v) { c.fillStyle = '#a9b8c5'; c.font = '18px Bahnschrift, Barlow, Segoe UI, sans-serif'; c.fillText('La figura compare quando una camera vede il corridore', 12, H / 2); return; }
+  const st = views[v], mir = $(`mir_${v}`).checked;
+  const P = st.lastLm.map((l) => ({ x: mir ? 1 - l.x : l.x, y: l.y, v: l.visibility ?? 1 }));
+  if (v !== 'side') {
+    const dx = P[24].x - P[23].x;
+    if (v === 'rear' ? dx < 0 : dx > 0) for (const [a, b] of [[11, 12], [13, 14], [15, 16], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32]]) { const t = P[a]; P[a] = P[b]; P[b] = t; }
+  }
+  const ar = (st.canvas.width || 16) / (st.canvas.height || 9), idx = [0, 11, 12, 23, 24, 25, 26, 27, 28, 31, 32];
+  const xs = idx.map((i) => P[i].x * ar), ys = idx.map((i) => P[i].y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys) - 0.08, y1 = Math.max(...ys) + 0.02;
+  const s = Math.min(W / ((x1 - x0) * 1.5 || 1), H / ((y1 - y0) * 1.1 || 1));
+  const M = (p) => ({ x: W / 2 + (p.x * ar - (x0 + x1) / 2) * s, y: H / 2 + (p.y - (y0 + y1) / 2) * s });
+  const lw = Math.max(5, H / 70);
+  const line = (segs, col, w) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.beginPath(); for (const [a, b] of segs) { const A = M(P[a]), B = M(P[b]); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); } c.stroke(); };
+  line([...BONES_CENTER, ...BONES_L, ...BONES_R], '#e6edf3', lw);
+  const nose = M(P[0]); c.strokeStyle = '#e6edf3'; c.lineWidth = lw * 0.8; c.beginPath(); c.arc(nose.x, nose.y, lw * 2.2, 0, 7); c.stroke();
+  const red = items.filter((i) => i.view === 'any' || (i.view === 'side') === (v === 'side')).flatMap((i) => i.segs);
+  if (red.length) { line(red, 'rgba(0,0,0,.6)', lw * 2.6); line(red, '#ff2d4a', lw * 1.8); }
+  c.fillStyle = '#a9b8c5'; c.font = `${Math.round(H / 26)}px Bahnschrift, Barlow, Segoe UI, sans-serif`; c.fillText(VIEW_NAMES[v], 8, H - 8);
 }
 
 function drawRibbon(canvas) {

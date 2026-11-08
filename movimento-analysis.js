@@ -79,8 +79,8 @@ export class RepCounter {
 
 const CHECK_WINDOW = 45;
 export class SetAnalyzer {
-  constructor({ protocol, view, aspect = 16 / 9, sideMode = 'auto', baseTilt = null, recording = false, onRep, onPeak }) {
-    Object.assign(this, { protocol, view, aspect, sideMode, baseTilt, recording, onRep, onPeak });
+  constructor({ protocol, view, aspect = 16 / 9, sideMode = 'auto', baseTilt = null, recording = false, onRep, onPeak, onRepPreview }) {
+    Object.assign(this, { protocol, view, aspect, sideMode, baseTilt, recording, onRep, onPeak, onRepPreview });
     this.spec = protocol.views[view];
     this.minVis = 0.35;
     this.filters = Array.from({ length: 33 }, () => ({ x: new OneEuro(1.6, 2.2), y: new OneEuro(1.6, 2.2) }));
@@ -166,6 +166,8 @@ export class SetAnalyzer {
     if (seenKey) this.valid++;
     const frame = { t, P, values: res.values, draws: res.draws, near: this.near, dir: this.dir, work: this.work, leg: this.leg, topY: this.topY };
     this.last = frame;
+    // Fuori registrazione si tengono pochi secondi, per commentare l'ultima ripetizione dal vivo.
+    if (!this.recording) { (this.recent ??= []).push(frame); while (this.recent[0].t < t - 8000) this.recent.shift(); }
     for (const k of this.counters) k.c.push(res.values[k.id], t);
     if (this.recording) {
       this.frames.push(frame);
@@ -177,7 +179,7 @@ export class SetAnalyzer {
   }
 
   addRep(r, id, side) {
-    const frames = this.frames;
+    const frames = this.recording ? this.frames : (this.recent ?? []);
     const at = {}, ext = {};
     let best = null;
     for (const f of frames) if (f.t >= r.t0 && f.t <= r.t1) {
@@ -185,7 +187,7 @@ export class SetAnalyzer {
       if (!best || Math.abs(f.t - r.tPeak) < Math.abs(best.t - r.tPeak)) best = f;
     }
     if (best) Object.assign(at, best.values);
-    if (!this.recording) return;
+    if (!this.recording) { this.previewN = (this.previewN ?? 0) + 1; this.onRepPreview?.({ ...r, i: this.previewN, side, driver: id, at, ext }, this); return; }
     const rep = { i: this.reps.filter((x) => x.side === side).length + 1, side, driver: id, ...r, at, ext };
     if (this.protocol.path && this.protocol.group === 'squat') {
       const seg = this.path.filter((p) => p.t >= r.t0 && p.t <= r.t1);

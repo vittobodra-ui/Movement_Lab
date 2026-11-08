@@ -3,6 +3,21 @@ import { BONES, NAMES } from './movimento-measure.js';
 export const COLORS = { L: '#4d9df0', R: '#f58a55', gold: '#ffe14d', hit: '#8df0a8', white: '#ffffff', dim: 'rgba(255,255,255,.45)' };
 const KEY = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
 
+// Segmenti con un errore in corso: rosso spesso con bordo scuro, visibile anche da lontano.
+export function drawAlerts(c, frame, segs, { W, H, aspect, mirror = false }) {
+  if (!segs?.length) return;
+  const s = Math.min(W, H) / 720, map = (p) => ({ x: ((mirror ? aspect - p.x : p.x) / aspect) * W, y: p.y * H });
+  c.save(); c.lineCap = 'round';
+  for (const [w, col] of [[16 * s, 'rgba(0,0,0,.55)'], [10 * s, '#ff2d4a']]) {
+    c.lineWidth = w; c.strokeStyle = col; c.beginPath();
+    for (const [a, b] of segs) {
+      if (frame.P[a].v < 0.25 || frame.P[b].v < 0.25) continue;
+      const A = map(frame.P[a]), B = map(frame.P[b]); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y);
+    }
+    c.stroke();
+  }
+  c.restore();
+}
 export function drawPose(c, frame, o) {
   const { W, H, aspect, mirror = false, view, labels = false, path = null, picked = null, goalHit = false, hideArcs = false } = o;
   const s = Math.min(W, H) / 720;

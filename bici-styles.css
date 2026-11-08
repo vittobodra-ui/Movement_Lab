@@ -1,0 +1,84 @@
+/* Messa in sella. Colori e pulsanti vengono da suite.css. */
+.subnav { display: flex; gap: 1.2rem; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.subnav a { text-decoration: none; padding: .3rem 0; }
+.subnav a[aria-current] { border-bottom: 2px solid var(--ink); font-weight: 600; }
+select { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: .3rem .45rem; min-height: 40px; }
+.check { display: flex; align-items: center; gap: .35rem; }
+.check input { width: auto; min-height: 0; }
+.bk-form { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(80px, .6fr)) minmax(0, 2fr) minmax(0, 1.2fr) minmax(80px, .6fr); gap: .6rem; align-items: end; margin-bottom: 1rem; }
+.bk-bays { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.bk-bay { background: var(--bay); color: var(--bay-ink); padding: 10px; border-radius: 4px; }
+.bk-bay select, .bk-bay input { background: #14273a; color: var(--bay-ink); border-color: #2c4258; }
+.bk-bay label { color: var(--bay-ink2); }
+.bk-head { display: flex; justify-content: space-between; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.bk-head h2 { margin: 0; display: flex; align-items: center; gap: .4rem; }
+.bk-head h2 select { min-height: 32px; font-size: 1rem; }
+.bk-state { font-size: .84rem; color: var(--bay-ink2); }
+.bk-state.warn { color: #ffd166; }
+.bk-stage { position: relative; aspect-ratio: 16 / 9; background: #081320; margin: 8px 0; overflow: hidden; }
+.bk-stage video { display: none; }
+.bk-stage canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.bk-ph { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 1rem; color: var(--bay-ink2); }
+.bk-src { display: flex; gap: .8rem; align-items: end; flex-wrap: wrap; }
+.bk-live { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 1rem; margin-top: 8px; }
+.bk-live .row { display: flex; justify-content: space-between; gap: .6rem; padding: .25rem 0; border-bottom: 1px solid #22384d; font-size: .9rem; }
+.bk-live .row b { font-size: 1.1rem; white-space: nowrap; }
+.bk-live .row small { color: var(--bay-ink2); font-weight: 400; }
+.bk-live .row.off b { color: #ff8a9b; } .bk-live .row.off span::after { content: '  !'; color: #ff8a9b; font-weight: 700; }
+.bk-foot { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; margin-top: 14px; }
+.bk-foot #go { margin-left: auto; min-width: 230px; }
+.bk-msg { font-weight: 600; } .bk-msg.warn { color: var(--alert); }
+.bk-note { margin-top: .8rem; }
+.cd { display: flex; align-items: center; }
+.cd span { font-size: .84rem; color: var(--ink2); margin-right: .45rem; }
+.cd button { border-radius: 0; margin-left: -1.5px; min-width: 50px; }
+.cd button:nth-of-type(1) { border-radius: 3px 0 0 3px; margin-left: 0; } .cd button:last-child { border-radius: 0 3px 3px 0; }
+.cd button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.bk-meta { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: end; margin: .6rem 0 1rem; }
+.bk-meta .grow { flex: 1 1 240px; }
+.bk-sec { margin-top: 1.4rem; break-inside: avoid; }
+.bk-table small { color: var(--ink2); font-weight: 400; }
+.bk-table td.st { white-space: nowrap; font-weight: 600; }
+.bk-table tr.flag td.st { color: var(--alert); }
+.print-only { display: none; }
+.sim-banner { background: var(--bay); color: var(--bay-ink); padding: .5rem .8rem; }
+.studio-line { font-size: .84rem; color: var(--ink2); }
+/* Figure: tratti sottili su fondo chiaro, leggibili in bianco e nero */
+.mf { --err: #c8233f; --floor: var(--paper); }
+@media (prefers-color-scheme: dark) { .mf, .bk-sec { --err: #ff6b82; } }
+.bk-sec { --err: #c8233f; --floor: var(--paper); }
+.mf-grid { display: grid; grid-template-columns: minmax(220px, 420px) minmax(0, 1fr); gap: 10px 24px; align-items: start; }
+.mf-fig { margin: 0; } .mf-fig figcaption { font-size: .78rem; color: var(--ink2); }
+.mf-svg { display: block; width: 100%; height: auto; font-family: var(--font); }
+.mf-ref { fill: none; stroke: #8496a6; stroke-width: 1.6; stroke-dasharray: 6 4; }
+.mf-me { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
+.mf-head { fill: none; stroke: var(--ink); stroke-width: 3; }
+.mf-joint { fill: var(--floor); stroke: var(--ink); stroke-width: 1.6; }
+.mf-err-o { fill: none; stroke: var(--err); stroke-width: 11; stroke-linecap: round; }
+.mf-err-i { fill: none; stroke: var(--floor); stroke-width: 4; stroke-linecap: round; }
+.mf-badge circle { fill: var(--err); } .mf-badge text { font-size: 15px; font-weight: 700; text-anchor: middle; fill: #fff; }
+.mf-small { font-size: 13px; fill: var(--ink2); }
+.bf-bike { fill: none; stroke: #8496a6; stroke-width: 1.6; }
+.bf-crank { fill: none; stroke: #8496a6; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.bf-far { fill: none; stroke: #8496a6; stroke-width: 2.5; stroke-linecap: round; }
+.bf-path { stroke-linejoin: round; }
+.bf-ang { font-size: 14px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--floor); stroke-width: 4; }
+.mf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.mf-list li { display: grid; grid-template-columns: 1.9em minmax(0, 1fr); gap: .4rem; max-width: 75ch; }
+.mf-num { display: inline-flex; align-items: center; justify-content: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: var(--err); color: #fff; font-weight: 700; font-size: .9em; }
+.mf-val, .mf-cue { color: var(--ink2); } .mf-cue { font-size: .92em; }
+.mf-good { font-weight: 600; }
+@media (max-width: 760px) {
+  .bk-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-form .grow { grid-column: 1 / -1; }
+  .bk-bays { grid-template-columns: 1fr; } .mf-grid { grid-template-columns: 1fr; } .bk-foot #go { width: 100%; }
+}
+@media print {
+  .no-print, .labbar, .subnav { display: none !important; }
+  .print-only { display: block; }
+  body { background: #fff; color: #000; }
+  .page { max-width: none; padding: 0; }
+  .sim-banner { background: none; color: #000; border: 1.5px solid #000; }
+  .mf, .bk-sec { --floor: #fff; --err: #c8233f; }
+  .mf-me, .mf-head, .mf-joint { stroke: #000; }
+  .bk-sec, .mf { break-inside: avoid; }
+}

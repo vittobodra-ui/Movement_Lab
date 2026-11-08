@@ -24,12 +24,8 @@
     <label class="grow">Note della sessione <input id="notes" autocomplete="off"></label>
     <div class="done" id="doneSets"></div>
   </section>
-  <div class="lists">
-    <section><h1>Accosciate</h1><ul class="exlist" id="ex-squat"></ul></section>
-    <section><h1>Stacco, panca e trazioni</h1><ul class="exlist" id="ex-lift"></ul></section>
-    <section><h1>Arti superiori</h1><ul class="exlist" id="ex-arm"></ul>
-      <h2 class="sub">Altri angoli</h2><ul class="exlist"><li><a href="#capture/custom"><b>Angolo personalizzato</b><span>Tocca tre punti di repere sull’immagine e misura qualsiasi angolo.</span></a></li></ul></section>
-  </div>
+  <h1 class="cats-title">Cosa vuoi analizzare?</h1>
+  <div class="cats" id="cats"></div>
   <details class="settings"><summary>Impostazioni</summary>
     <div class="fields">
       <label>Riconoscimento <select id="s_model"><!--MODELS--></select></label>
@@ -42,6 +38,7 @@
       <label class="check"><input type="checkbox" id="s_voice"> Conta le ripetizioni a voce</label>
       <label class="check"><input type="checkbox" id="s_trail"> Mostra la traiettoria</label>
       <label class="check"><input type="checkbox" id="s_labels"> Mostra i nomi dei punti</label>
+      <label class="check"><input type="checkbox" id="s_alerts"> Evidenzia in rosso gli errori sul video</label>
     </div>
   </details>
   <div class="install" id="installBox" hidden><p></p><button id="install"></button></div>
@@ -112,6 +109,7 @@
   </header>
   <div class="bays one" id="bays"></div>
   <footer class="cap-foot">
+    <button id="clientBtn">Schermo cliente</button>
     <button id="snap">Fissa misura</button>
     <button id="calib" hidden>Calibra</button>
     <button id="metro" aria-pressed="false" hidden>Metronomo</button>
@@ -119,6 +117,17 @@
     <button id="go" class="go" disabled>Avvia la serie</button>
   </footer>
 </section>
+<div id="client" class="client" hidden>
+  <canvas id="clientCv"></canvas>
+  <aside class="cl-side">
+    <p class="cl-ex" id="clEx"></p>
+    <div class="cl-reps"><b id="clReps">0</b><span>ripetizioni</span></div>
+    <div class="cl-val"><span id="clValL"></span><div id="clVal"></div></div>
+    <ul class="cl-alerts" id="clAlerts" aria-live="polite"></ul>
+    <div class="cl-last" id="clLast" aria-live="polite"></div>
+  </aside>
+  <button id="clientClose" class="cl-close">Chiudi</button>
+</div>
 <script type="module" src="suitebar.js"></script>
 <script type="module" src="movimento-app.js"></script>
 </body>

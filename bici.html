@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bici, Movement Lab</title>
+<meta name="theme-color" content="#0d1b2b">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="suite.css">
+<link rel="stylesheet" href="bici-styles.css">
+<link rel="stylesheet" href="suitebar.css">
+</head>
+<body data-module="bici">
+<nav class="subnav no-print" aria-label="Bici"><a href="#home">Nuova analisi</a><a href="#archivio">Archivio</a><a href="#guida">Guida</a></nav>
+
+<main id="home" class="page">
+  <h1>Messa in sella</h1>
+  <form class="bk-form" id="form" autocomplete="off">
+    <label class="grow">Persona <input id="person" list="people"><datalist id="people"></datalist></label>
+    <label>Anno di nascita <input id="birth" type="number" inputmode="numeric"></label>
+    <label>Altezza cm <input id="height" type="number" inputmode="numeric"></label>
+    <label class="grow">Bici <input id="bike" placeholder="Marca, modello, taglia"></label>
+    <label>Tipo di bici <select id="category"></select></label>
+    <label>Pedivella mm <input id="crank" type="number" step="0.5" inputmode="decimal" value="172.5"></label>
+  </form>
+
+  <div class="bk-bays">
+    <section class="bk-bay" id="bay_side">
+      <div class="bk-head"><h2>Vista laterale</h2><span class="bk-state" id="state_side">Nessuna sorgente</span></div>
+      <div class="bk-stage"><video id="vid_side" muted playsinline></video><canvas id="cv_side"></canvas><div class="bk-ph" id="ph_side">Camera di lato, all’altezza del movimento centrale, con tutta la bici nell’inquadratura</div></div>
+      <div class="bk-src"><label>Sorgente <select id="src_side"></select></label><label class="check"><input type="checkbox" id="mir_side"> Specchia</label><input type="file" id="file_side" accept="video/*" hidden></div>
+      <div class="bk-live" id="live_side"></div>
+    </section>
+    <section class="bk-bay" id="bay_front">
+      <div class="bk-head"><h2>Vista <select id="frontView" aria-label="Vista della seconda camera"><option value="front">frontale</option><option value="rear">posteriore</option></select></h2><span class="bk-state" id="state_front">Facoltativa</span></div>
+      <div class="bk-stage"><video id="vid_front" muted playsinline></video><canvas id="cv_front"></canvas><div class="bk-ph" id="ph_front">Camera davanti o dietro la bici, all’altezza delle ginocchia</div></div>
+      <div class="bk-src"><label>Sorgente <select id="src_front"></select></label><label class="check"><input type="checkbox" id="mir_front"> Specchia</label><input type="file" id="file_front" accept="video/*" hidden></div>
+      <div class="bk-live" id="live_front"></div>
+    </section>
+  </div>
+
+  <div class="bk-foot">
+    <label>Durata <select id="duration"><option value="20">20 s</option><option value="30" selected>30 s</option><option value="45">45 s</option><option value="60">60 s</option></select></label>
+    <div class="cd" role="group" aria-label="Conto alla rovescia"><span>Conto alla rovescia</span><button type="button" data-cd="0">0 s</button><button type="button" data-cd="3">3 s</button><button type="button" data-cd="5">5 s</button></div>
+    <button id="demo" type="button">Prova con un ciclista simulato</button>
+    <span class="bk-msg" id="msg" aria-live="polite"></span>
+    <button id="go" class="primary" disabled>Avvia la registrazione</button>
+  </div>
+  <label class="bk-note">Note <input id="note" placeholder="Fastidi, scarpe e tacchette, sella, obiettivi"></label>
+</main>
+
+<main id="report" class="page" hidden></main>
+<main id="archivio" class="page" hidden></main>
+
+<main id="guida" class="page guide" hidden>
+  <h1>Guida alla messa in sella</h1>
+  <h2>Preparazione</h2>
+  <ul>
+    <li>Bici sul rullo, in piano, con le ruote allineate. Scarpe, tacchette e abbigliamento di sempre.</li>
+    <li>Camera laterale perpendicolare alla bici, all’altezza del movimento centrale, a 3-4 metri: deve vedere tutta la persona e le due ruote. Riprendi il lato della pedivella.</li>
+    <li>Camera frontale o posteriore, facoltativa, all’altezza delle ginocchia e al centro della bici.</li>
+    <li>Luce uniforme alle spalle della camera, sfondo senza altre persone. Se puoi, scegli 60 fotogrammi al secondo.</li>
+    <li>Riscaldamento di 5 minuti, poi registra pedalando alla cadenza abituale, di solito 80-95 giri al minuto, con le mani nella posizione più usata.</li>
+  </ul>
+  <h2>Cosa misura</h2>
+  <ul>
+    <li><b>Altezza della sella:</b> flessione del ginocchio con il pedale in basso. Il riferimento dinamico è 30-40°; la stima in millimetri usa la lunghezza di coscia e gamba misurate e la pedivella indicata.</li>
+    <li><b>Arretramento della sella:</b> ginocchio rispetto al perno del pedale con la pedivella orizzontale in avanti. È un riferimento classico, non una regola.</li>
+    <li><b>Posizione del busto e allungamento:</b> busto sull’orizzontale, angolo tra busto e braccio, gomiti. I valori di riferimento cambiano con il tipo di bici.</li>
+    <li><b>Da davanti o da dietro:</b> spostamento laterale dei ginocchi, differenza tra i lati, oscillazione del bacino.</li>
+  </ul>
+  <h2>Limiti</h2>
+  <p>Gli angoli si misurano sull’immagine: se la camera non è perpendicolare cambiano di qualche grado. I millimetri sono stime basate sulla lunghezza della pedivella. Fai una modifica alla volta e ricontrolla con una nuova registrazione; in caso di dolore, valuta la persona prima della bici.</p>
+</main>
+
+<script type="module" src="suitebar.js"></script>
+<script type="module" src="bici-app.js"></script>
+</body>
+</html>

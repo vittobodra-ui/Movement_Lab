@@ -1,6 +1,7 @@
 // Una postazione di ripresa: sorgente video, riconoscimento, disegno, serie registrata.
 import { SetAnalyzer, pathPoint, median } from './movimento-analysis.js';
-import { drawPose } from './movimento-overlay.js';
+import { drawPose, drawAlerts } from './movimento-overlay.js';
+import { LiveFeedback } from './movimento-feedback.js';
 import { createPose } from './engine.js';
 import { simulate } from './movimento-sim.js';
 import { packFrames } from './movimento-store.js';
@@ -8,8 +9,8 @@ import { packFrames } from './movimento-store.js';
 const ANALYSIS_SIZE = 640, KEY_W = 640, TRAIL_MS = 4000;
 
 export class Station {
-  constructor({ canvas, video, settings, onFrame, onRep, onMessage, onEnded }) {
-    Object.assign(this, { canvas, video, settings, onFrame, onRep, onMessage, onEnded });
+  constructor({ canvas, video, settings, onFrame, onRep, onMessage, onEnded, onRepFeedback }) {
+    Object.assign(this, { canvas, video, settings, onFrame, onRep, onMessage, onEnded, onRepFeedback });
     this.kind = 'none'; this.state = 'idle';
     this.off = document.createElement('canvas');
     this.offC = this.off.getContext('2d');
@@ -29,8 +30,10 @@ export class Station {
       protocol: this.protocol, view: this.view, aspect: this.aspect, sideMode: this.sideMode, baseTilt: this.baseTilt, recording,
       onRep: (r, a) => this.handleRep(r, a),
       onPeak: (id, side, v, t, frame) => this.handlePeak(side, frame, t),
+      onRepPreview: (r, a) => this.repFeedback(r, a),
     });
     this.trail = [];
+    this.feedback = new LiveFeedback(this.protocol, this.view);
   }
 
   async ensurePose() {
@@ -172,6 +175,8 @@ export class Station {
       }
       this.goalHit = this.isGoalHit(frame);
       drawPose(c, frame, { W, H, aspect: a.aspect, mirror: this.mirror, view: this.view, labels: set.labels, path: set.trail ? this.trail : null, picked: this.picked, goalHit: this.goalHit });
+      const fb = this.feedback?.update(frame);
+      if (fb && set.alerts !== false) drawAlerts(c, frame, fb.segs, { W, H, aspect: a.aspect, mirror: this.mirror });
       if (this.state === 'recording') this.firstFrameKey(frame);
     }
     this.onFrame?.(frame, a, this);
@@ -197,7 +202,12 @@ export class Station {
     cand.c.getContext('2d').drawImage(this.off, 0, 0, cand.c.width, cand.c.height);
     cand.frame = frame; cand.t = t;
   }
+  repFeedback(rep, a) {
+    const last = this.feedback?.onRep(rep, { work: a.work, near: a.near, dir: a.dir });
+    if (last) this.onRepFeedback?.(last, this);
+  }
   handleRep(rep, a) {
+    this.repFeedback(rep, a);
     this.onRep?.(rep, a, this);
     const key = rep.side ?? 'any', cand = this.peakCand[key];
     if (!cand?.frame) return;

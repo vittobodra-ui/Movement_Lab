@@ -218,4 +218,4 @@ export function stabiloFlags(exam, T = thresholds()) {
   return out;
 }
 
-export const countFlags = (mod, doc, T = thresholds()) => (mod === 'corsa' ? corsaFlags(doc, T) : mod === 'movimento' ? movimentoFlags(doc, T) : stabiloFlags(doc, T));
+export const countFlags = (mod, doc, T = thresholds()) => (mod === 'corsa' ? corsaFlags(doc, T) : mod === 'movimento' ? movimentoFlags(doc, T) : mod === 'stabilometria' ? stabiloFlags(doc, T) : []);

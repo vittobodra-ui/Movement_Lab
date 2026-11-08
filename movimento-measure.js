@@ -344,4 +344,14 @@ export const VIEW_NAMES = { side: 'Laterale', front: 'Frontale', rear: 'Posterio
 export const VIEW_ORDER = ['rear', 'front', 'side'];
 export const defaultView = (p) => (p.defaultView && p.views[p.defaultView] ? p.defaultView : p.group === 'squat' && p.views.rear ? 'rear' : Object.keys(p.views)[0]);
 export const viewList = (p) => VIEW_ORDER.filter((v) => p.views[v]);
+// Le sei scelte della pagina iniziale.
+export const CATEGORIES = [
+  { id: 'squat', name: 'Squat', text: 'Squat, affondi e lavoro su una gamba', match: (p) => p.group === 'squat' },
+  { id: 'panca', name: 'Panca', text: 'Panca, distensioni e piegamenti', match: (p) => p.family === 'bench' || p.family === 'pushup' },
+  { id: 'stacco', name: 'Stacco', text: 'Stacco da terra e varianti', match: (p) => ['deadlift', 'rdl', 'slrdl'].includes(p.family) },
+  { id: 'trazioni', name: 'Trazioni', text: 'Trazioni, lat machine e rematore', match: (p) => ['pull', 'latpull', 'row'].includes(p.family) },
+  { id: 'arti', name: 'Arti superiori', text: 'Spalla, gomito e polso: mobilità', match: (p) => p.group === 'arm' },
+  { id: 'altri', name: 'Altri angoli', text: 'Qualsiasi angolo tra tre punti che tocchi sull’immagine', match: () => false, custom: true },
+];
+export const categoryOf = (p) => (p?.custom ? CATEGORIES.at(-1) : CATEGORIES.find((c) => c.match(p)));
 export const metricLabel = (m, side) => (side ? `${m.label} ${sideName(side)}` : m.label);

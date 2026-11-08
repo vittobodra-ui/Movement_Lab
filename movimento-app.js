@@ -1,4 +1,4 @@
-import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList } from './movimento-measure.js';
+import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList, CATEGORIES, categoryOf } from './movimento-measure.js';
 import { reanalyzePack } from './movimento-analysis.js';
 import { setErrorsHtml } from './movimento-errori.js';
 import { Station } from './movimento-station.js';
@@ -19,7 +19,7 @@ const ls = {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- impostazioni ---------- */
-const DEFAULTS = { model: isPhone ? 'lite' : 'full', countdown: isPhone ? '5' : '3', duration: '0', rate: '1', record: true, keepVideo: true, sound: true, voice: false, trail: true, labels: false };
+const DEFAULTS = { model: isPhone ? 'lite' : 'full', countdown: isPhone ? '5' : '3', duration: '0', rate: '1', record: true, keepVideo: true, sound: true, voice: false, trail: true, labels: false, alerts: true };
 let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(ls.get('am_settings', '{}')) }; } catch { /* valori predefiniti */ }
 if (!['0', '3', '5'].includes(String(settings.countdown))) settings.countdown = '5';
@@ -45,9 +45,7 @@ setCountdown(settings.countdown);
 let session = null;
 const newSession = () => ({ id: Date.now(), createdAt: Date.now(), person: $('person').value.trim(), notes: $('notes').value.trim(), draft: true, sets: [] });
 function renderHome() {
-  $('ex-squat').innerHTML = PROTOCOLS.filter((p) => p.group === 'squat').map(row).join('');
-  $('ex-arm').innerHTML = PROTOCOLS.filter((p) => p.group === 'arm').map(row).join('');
-  $('ex-lift').innerHTML = PROTOCOLS.filter((p) => p.group === 'lift').map(row).join('');
+  renderCats();
   const box = $('doneSets'), sets = session?.sets ?? [];
   box.innerHTML = sets.length ? `<ul>${sets.map((s) => `<li><a href="#result/${session.id}/${s.id}">${esc(setName(s))}</a></li>`).join('')}</ul>
     <button id="toReport" class="primary">Crea il referto</button> <button id="newSess" class="quiet">Inizia una nuova sessione</button>` : '';
@@ -59,7 +57,27 @@ function renderHome() {
     };
   }
 }
-const row = (p) => `<li><a href="#capture/${p.id}"><b>${esc(p.name)}</b><span>${esc(p.hint)}</span></a></li>`;
+// Sei riquadri: in ognuno si sceglie il movimento dal menu e si apre la ripresa.
+function renderCats() {
+  const box = $('cats'); if (box.dataset.ready) return;
+  box.dataset.ready = '1';
+  box.innerHTML = CATEGORIES.map((c) => {
+    const list = c.custom ? [{ id: 'custom', name: 'Angolo personalizzato', hint: 'Tocca tre punti di repere sull’immagine: il secondo è il vertice dell’angolo.' }] : PROTOCOLS.filter(c.match);
+    const last = ls.get(`am_cat_${c.id}`, ''), pick = list.find((p) => p.id === last) ?? list[0];
+    return `<section class="excat" data-cat="${c.id}"><h2>${esc(c.name)}</h2><p class="fine">${esc(c.text)}</p>
+      <label>Movimento <select id="pick-${c.id}">${list.map((p) => `<option value="${p.id}"${p === pick ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <p class="exhint" id="hint-${c.id}">${esc(pick.hint)}</p>
+      <a class="btn primary exgo" id="go-${c.id}" href="#capture/${pick.id}">Inizia</a></section>`;
+  }).join('');
+  for (const c of CATEGORIES) {
+    const sel = $(`pick-${c.id}`);
+    sel.onchange = () => {
+      const p = c.custom ? null : protocolById(sel.value);
+      $(`hint-${c.id}`).textContent = p ? p.hint : 'Tocca tre punti di repere sull’immagine: il secondo è il vertice dell’angolo.';
+      $(`go-${c.id}`).href = `#capture/${sel.value}`; ls.set(`am_cat_${c.id}`, sel.value);
+    };
+  }
+}
 function syncForm() { if (session) { session.person = $('person').value.trim(); session.notes = $('notes').value.trim(); } }
 for (const id of ['person', 'notes']) $(id).addEventListener('change', () => { if (session) { syncForm(); saveSession(session).catch(() => {}); } });
 const fillPeople = () => window.LAB.refreshPeople();
@@ -76,6 +94,7 @@ function bayMarkup(k) {
       <div class="hero"><div class="main" id="hero${k}">–</div><div class="rep"><b id="reps${k}">0</b><span>ripetizioni</span></div></div>
       <div class="lastrep" id="last${k}"></div>
       <div class="asym-live" id="asym${k}"></div>
+      <div class="repfb" id="fb${k}" aria-live="polite"></div>
       <canvas class="strip" id="strip${k}"></canvas>
       <div class="rows" id="rows${k}"></div>
     </div>
@@ -99,8 +118,7 @@ function setHint(k, msg, warn = false, keepMs = 0) {
   if (bays[k]) bays[k].hintUntil = keepMs ? performance.now() + keepMs : 0;
 }
 function fillExSel() {
-  const g = (grp, label) => `<optgroup label="${label}">${PROTOCOLS.filter((p) => p.group === grp).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`;
-  $('exSel').innerHTML = `${g('squat', 'Accosciate e arto inferiore')}${g('lift', 'Stacco, panca e trazioni')}${g('arm', 'Arti superiori')}<optgroup label="Altro"><option value="custom">Angolo personalizzato</option></optgroup>`;
+  $('exSel').innerHTML = CATEGORIES.map((c) => `<optgroup label="${esc(c.name)}">${c.custom ? '<option value="custom">Angolo personalizzato</option>' : PROTOCOLS.filter(c.match).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('');
   $('exSel').value = protocol.custom ? 'custom' : protocol.id;
   $('capName').hidden = !protocol.custom;
 }
@@ -155,6 +173,7 @@ async function initBay(k, view, startCam = true) {
     canvas: $(`c${k}`), video: $(`v${k}`), settings: getSettings,
     onFrame: (f, a) => onFrame(b, f, a),
     onRep: (r, a) => onRep(b, r, a),
+    onRepFeedback: (fb) => onRepFeedback(b, fb),
     onMessage: (m, err, keep) => setHint(k, m, !!err, keep ? 30000 : (m ? 8000 : 0)),
     onEnded: () => { if (bays.every((x) => !x || x.st.kind !== 'camera')) finishSet(); },
   });
@@ -329,6 +348,7 @@ function onFrame(b, f, a) {
     }
   }
   drawStrip(b, spec);
+  if (b.k === clientBay && !$('client').hidden) renderClient(b);
   const q = a.qualityNow, tag = $(`tag${k}`);
   if (!isPhone) tag.textContent = `${Math.round(a.fps)} fps${a.near && b.view === 'side' ? `, lato ${a.near === 'L' ? 'sinistro' : 'destro'}` : ''}`;
   if (now >= b.hintUntil) {
@@ -338,6 +358,38 @@ function onFrame(b, f, a) {
     else setHint(k, customPick && !customPick.done ? 'Tocca tre punti di repere: il secondo è il vertice dell’angolo.' : '');
   }
 }
+/* ---------- schermo per il cliente ---------- */
+let clientBay = 0;
+function onRepFeedback(b, fb) {
+  const k = b.k, ok = !fb.items.length;
+  const head = `Ripetizione ${fb.side ? `${fb.side === 'L' ? 'sin' : 'des'} ` : ''}${fb.i}`;
+  const html = ok ? `<span class="fb-ok">✓ ${head}: bene</span>` : `<span class="fb-bad">! ${head}: ${fb.items.map((i) => esc(i.cue)).join(' · ')}</span>`;
+  $(`fb${k}`).innerHTML = html;
+  if (k === clientBay) { $('clLast').innerHTML = html; $('clLast').className = `cl-last ${ok ? 'ok' : 'bad'}`; }
+  if (settings.voice && !ok && 'speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(fb.items[0].cue); u.lang = 'it-IT'; u.rate = 1.1; speechSynthesis.speak(u); }
+}
+function renderClient(b) {
+  const cv = $('clientCv'), src = $(`c${b.k}`);
+  const W = cv.clientWidth, H = cv.clientHeight; if (!W || !src.width) return;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const c = cv.getContext('2d'), r = Math.min(W / src.width, H / src.height), w = src.width * r, h = src.height * r;
+  c.fillStyle = '#0d1b2b'; c.fillRect(0, 0, W, H); c.drawImage(src, (W - w) / 2, (H - h) / 2, w, h);
+  $('clReps').textContent = b.st.state === 'recording' ? $(`reps${b.k}`).textContent : String(b.st.analyzer?.previewN ?? 0);
+  $('clVal').innerHTML = $(`hero${b.k}`).innerHTML;
+  $('clValL').textContent = $(`hl${b.k}`).textContent;
+  const items = b.st.feedback?.items ?? [];
+  $('clAlerts').innerHTML = items.length ? items.map((i) => `<li>${esc(i.cue)}</li>`).join('') : '';
+  $('client').classList.toggle('alert', items.length > 0);
+}
+function openClient() {
+  clientBay = bays[1] && $('clientBay')?.value === '1' ? 1 : 0;
+  $('clEx').textContent = `${protocol?.name ?? ''}${bays[clientBay] ? `, ${VIEW_NAMES[bays[clientBay].view].toLowerCase()}` : ''}`;
+  $('clLast').textContent = ''; $('client').hidden = false;
+  document.documentElement.requestFullscreen?.().catch(() => {});
+}
+function closeClient() { $('client').hidden = true; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+$('clientBtn').onclick = openClient; $('clientClose').onclick = closeClient;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('client').hidden) closeClient(); });
 function drawStrip(b, spec) {
   const c = $(`strip${b.k}`); if (!c || !c.clientWidth) return;
   const dpr = devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
@@ -626,11 +678,10 @@ async function renderResult(sid, setId) {
 /* Modifica di una serie salvata */
 function editPanel(set, media) {
   if (set.protocolId === 'custom') return '';
-  const opts = (grp, label) => `<optgroup label="${label}">${PROTOCOLS.filter((p) => p.group === grp).map((p) => `<option value="${p.id}"${p.id === set.protocolId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`;
   return `<details class="edit-set" id="editSet"><summary>Modifica la serie e ricalcola</summary>
     <p class="fine">Se in ripresa era scelto l’esercizio, la vista o il lato sbagliato, correggilo qui. “Ricalcola” rifà misure e ripetizioni dai punti salvati, in un attimo. “Rianalizza il video” riconosce di nuovo il corpo dal video, per esempio con il riconoscimento più preciso.</p>
     <div class="edit-row">
-      <label>Esercizio <select id="edEx">${opts('squat', 'Accosciate e arto inferiore')}${opts('lift', 'Stacco, panca e trazioni')}${opts('arm', 'Arti superiori')}</select></label>
+      <label>Esercizio <select id="edEx">${CATEGORIES.filter((c) => !c.custom).map((c) => `<optgroup label="${esc(c.name)}">${PROTOCOLS.filter(c.match).map((p) => `<option value="${p.id}"${p.id === set.protocolId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>
       <label>Ripresa da <select id="edView"></select></label>
       <label id="edSideL">Lato <select id="edSide"><option value="auto">Automatico</option><option value="L">Sinistro</option><option value="R">Destro</option></select></label>
       <label>Carico kg <input id="edLoad" type="number" step="0.5" value="${esc(set.load ?? '')}"></label>
