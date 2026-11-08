@@ -226,9 +226,9 @@ body[data-platform="mobile"] .lastrep { margin: .1rem 0; }
   .page { padding: 0; }
   .chart .tip, .chart .cross { display: none; }
   table.metrics, .keys, .chart, .mf { break-inside: avoid; }
-  .report .keys.photos { display: none; }
-  .report.print-photos .keys.photos { display: grid; }
-  .keys img { background: none; }
+  table.metrics .sd { display: inline; }
+  .report .rep-set { break-before: page; margin-top: 0; }
+  .report .chart { max-width: 150mm; }
   .sim-banner { background: none; color: #000; border: 1.5px solid #000; }
   .mf { --floor: #fff; --err: #c8233f; }
   .mf-me, .mf-head, .mf-joint { stroke: #000; }

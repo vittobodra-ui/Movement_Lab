@@ -2,6 +2,7 @@
 import { protocolById } from './movimento-measure.js';
 import { evaluate } from './movimento-analysis.js';
 import { drawPose } from './movimento-overlay.js';
+import { inkFigure } from './movimento-ink.js';
 import { frameContext } from './movimento-store.js';
 import { setFindings, numbered } from './movimento-errori.js';
 
@@ -333,7 +334,9 @@ export class Review {
     const t = (this.pack.times[this.i] - this.pack.times[0]) / 1000;
     const main = this.lastFrame?.values[this.spec.primary];
     const label = `Fotogramma a ${it(t, 1)} s${main != null ? `: ${Math.round(main)}°` : ''}${this.manualAngle != null && this.manual.length === 3 ? `, a mano ${it(this.manualAngle, 1)}°` : ''}`;
-    this.onSave?.({ src: c.toDataURL('image/jpeg', 0.78), label, values: this.lastFrame?.values ?? {} });
+    let ink = null;
+    try { const f = this.frameAt(this.i); ink = inkFigure(f.P, { aspect: this.aspect, mirror: !!this.media.mirror, side: this.set.view === 'side', near: f.near }); } catch { /* solo la foto */ }
+    this.onSave?.({ src: c.toDataURL('image/jpeg', 0.78), ink, label, values: this.lastFrame?.values ?? {} });
   }
   // Riproduce la serie con i gradi disegnati e ne ricava un file video.
   async exportVideo(onDone) {

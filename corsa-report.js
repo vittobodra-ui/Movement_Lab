@@ -1,6 +1,8 @@
 import { allSessions, getSession, deleteSession, saveSession } from './corsa-store.js';
 import { corsaFlags, corsaPair, sectionHtml, mark, sideWord, CORSA_KEYS } from './asym.js';
 import { ruotaSection, bindRuota } from './corsa-ruota.js';
+const PHOTO_KEY = 'corsa_print_photos';
+const photosInPrint = () => { try { return localStorage.getItem(PHOTO_KEY) === '1'; } catch { return false; } };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const fmtDate = (ms) => new Date(ms).toLocaleString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -119,7 +121,7 @@ export async function renderReport(root, id, compareId = null) {
 
   const sections = Object.keys(VIEW_NAMES).filter((v) => s.views[v]).map((v) => {
     const data = s.views[v];
-    const keys = (data.keyframes ?? []).map((k) => `<figure><img src="${k.src}" alt="${esc(k.label)}, ${esc(VIEW_NAMES[v])}"><figcaption>${esc(k.label)}</figcaption></figure>`).join('');
+    const keys = (data.keyframes ?? []).filter((k) => k.ink || !s.simulated).map((k) => `<figure class="${s.simulated ? 'ink-only' : ''}${k.ink ? '' : ' no-ink'}">${s.simulated ? '' : `<img class="k-photo" src="${k.src}" alt="${esc(k.label)}, ${esc(VIEW_NAMES[v])}">`}${k.ink ? `<img class="k-ink" src="${k.ink}" alt="${esc(k.label)}, figura">` : ''}<figcaption>${esc(k.label)}</figcaption></figure>`).join('');
     const charts = v === 'side'
       ? chart('Cadenza', 'passi/min', [{ name: 'Cadenza', cls: 'n1', points: pts(data, 'cadence') }], 0) + chart('Tallone avanti al bacino', '% gamba', [{ name: 'Tallone', cls: 'n1', points: pts(data, 'overstride') }])
       : chart('Caduta del bacino in appoggio', '°', [{ name: 'Sinistra', cls: 'l', points: pts(data, 'drop_L') }, { name: 'Destra', cls: 'r', points: pts(data, 'drop_R') }]) + chart('Valgo dinamico', '°', [{ name: 'Sinistra', cls: 'l', points: pts(data, 'valgus_L') }, { name: 'Destra', cls: 'r', points: pts(data, 'valgus_R') }]);
@@ -136,6 +138,7 @@ export async function renderReport(root, id, compareId = null) {
       <div><div class="studio-line">${esc(window.LAB.studio())}</div><h1>${esc(s.person || 'Sessione di corsa')}</h1><p>${fmtDate(s.createdAt)}</p></div>
       <div class="rep-actions no-print">
         <label>Confronta con <select id="cmp"><option value="">Nessuna sessione</option>${others.map((o) => `<option value="${o.id}" ${String(o.id) === String(compareId) ? 'selected' : ''}>${fmtDate(o.createdAt)}${o.simulated ? ' (simulata)' : ''}</option>`).join('')}</select></label>
+        <label class="check"><input type="checkbox" id="photosPrint"${photosInPrint() ? ' checked' : ''}> Stampa anche le foto</label>
         <button id="print" class="primary">Stampa o salva PDF</button>
         <a class="btn" href="#archivio">Archivio</a>
       </div>
@@ -150,6 +153,9 @@ export async function renderReport(root, id, compareId = null) {
     <p class="fine disclaimer">Stime da video 2D, utili per confrontare le sessioni della stessa persona con la stessa ripresa. Non sono misure di laboratorio e non costituiscono una diagnosi.</p>
   </div>`;
   root.querySelector('#print').onclick = () => print();
+  const syncPhotos = () => root.querySelector('.report').classList.toggle('print-photos', root.querySelector('#photosPrint').checked);
+  root.querySelector('#photosPrint').onchange = (e) => { try { localStorage.setItem(PHOTO_KEY, e.target.checked ? '1' : '0'); } catch { /* scelta non salvata */ } syncPhotos(); };
+  syncPhotos();
   root.querySelector('#cmp').onchange = (e) => { location.hash = `#report/${id}${e.target.value ? `/${e.target.value}` : ''}`; };
   bindCharts(root);
   bindRuota(root, s, saveSession);

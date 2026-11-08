@@ -179,6 +179,7 @@ table.metrics td:first-of-type { font-weight: 600; }
   .page { padding: 0; }
   .chart .tip, .chart .cross { display: none; }
   .rep-view { break-inside: auto; } table.metrics, .keys, .charts { break-inside: avoid; }
+  .report .rep-view { break-before: page; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 

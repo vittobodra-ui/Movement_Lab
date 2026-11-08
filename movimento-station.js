@@ -1,5 +1,6 @@
 // Una postazione di ripresa: sorgente video, riconoscimento, disegno, serie registrata.
 import { SetAnalyzer, pathPoint, median } from './movimento-analysis.js';
+import { inkFigure } from './movimento-ink.js';
 import { drawPose, drawAlerts } from './movimento-overlay.js';
 import { LiveFeedback } from './movimento-feedback.js';
 import { createPose } from './engine.js';
@@ -192,7 +193,7 @@ export class Station {
     if (this.keys.start) return;
     const q = this.analyzer.qualityNow;
     if (q < 0.5) return;
-    this.keys.start = { src: this.compose(this.sourceForKey(), frame), label: this.analyzer.spec.startName ?? 'Inizio', score: 0 };
+    this.keys.start = { src: this.compose(this.sourceForKey(), frame), ink: this.ink(frame), label: this.analyzer.spec.startName ?? 'Inizio', score: 0 };
   }
   sourceForKey() { return this.off; }
   handlePeak(side, frame, t) {
@@ -216,8 +217,11 @@ export class Station {
     const prior = this.keys[key];
     if (!prior || score <= prior.score) {
       const label = `${a.spec.peakName ?? 'Picco'}${rep.side ? `, ${rep.side === 'L' ? 'sinistra' : 'destra'}` : ''}, ripetizione tipica`;
-      this.keys[key] = { score, src: this.compose(cand.c, cand.frame), label };
+      this.keys[key] = { score, src: this.compose(cand.c, cand.frame), ink: this.ink(cand.frame), label };
     }
+  }
+  ink(frame) {
+    try { return inkFigure(frame.P, { aspect: this.analyzer.aspect, mirror: this.mirror, side: this.view === 'side', near: frame.near }); } catch { return null; }
   }
   compose(src, frame) {
     const out = document.createElement('canvas'); out.width = KEY_W; out.height = Math.round(KEY_W * this.canvas.height / this.canvas.width);
@@ -231,7 +235,7 @@ export class Station {
     if (!f) return null;
     const t = this.analyzer.fpsT.at(-1) - (this.analyzer.frames[0]?.t ?? this.analyzer.fpsT.at(-1));
     const main = this.analyzer.spec.primary, v = f.values[main];
-    const snap = { src: this.compose(this.off, f), label: `Misura fissata${v != null ? `: ${Math.round(v)}°` : ''}`, values: { ...f.values }, atS: Math.max(0, t / 1000) };
+    const snap = { src: this.compose(this.off, f), ink: this.ink(f), label: `Misura fissata${v != null ? `: ${Math.round(v)}°` : ''}`, values: { ...f.values }, atS: Math.max(0, t / 1000) };
     this.snaps.push(snap);
     return snap;
   }
@@ -271,9 +275,9 @@ export class Station {
     else if (this.kind === 'file') { blob = this.file; videoOffset = 0; mime = this.file.type; }
     this.rec = null;
     const keyframes = [];
-    if (this.keys.start) keyframes.push({ src: this.keys.start.src, label: this.keys.start.label });
-    for (const k of ['any', 'L', 'R']) if (this.keys[k]) keyframes.push({ src: this.keys[k].src, label: this.keys[k].label });
-    for (const s of this.snaps) keyframes.push({ src: s.src, label: s.label, values: s.values });
+    if (this.keys.start) keyframes.push({ src: this.keys.start.src, ink: this.keys.start.ink ?? null, label: this.keys.start.label });
+    for (const k of ['any', 'L', 'R']) if (this.keys[k]) keyframes.push({ src: this.keys[k].src, ink: this.keys[k].ink ?? null, label: this.keys[k].label });
+    for (const s of this.snaps) keyframes.push({ src: s.src, ink: s.ink ?? null, label: s.label, values: s.values });
     const out = { summary, keyframes, pack: packFrames(a.frames), blob, mime, videoOffset, aspect: a.aspect, sourceName: this.kind === 'demo' ? '' : this.sourceName, simulated: this.kind === 'demo', mirror: this.mirror, kind: this.kind };
     this.newAnalyzer(false);
     return out;

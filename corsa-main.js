@@ -6,6 +6,7 @@ import { saveSession } from './corsa-store.js';
 import { renderArchive, renderReport, VIEW_NAMES } from './corsa-report.js';
 import { wheelLimits } from './corsa-ruota.js';
 import { runCueSvg, runCueText } from './corsa-cues.js';
+import { inkFigure } from './corsa-ink.js';
 
 const $ = (id) => document.getElementById(id);
 const NOTE = (m, err = false) => { const s = $('status'); s.textContent = m; s.classList.toggle('err', err); };
@@ -267,12 +268,12 @@ function drawOverlay(st, lm) {
   if (lm) drawSkeleton(ctx, st, lm, w, h);
 }
 
-function stashFrame(st, source, lm, t) {
+function stashFrame(st, source, lm, t, inkLm = lm) {
   if (!st.ring.length) return;
   const f = st.ring[st.ringAt = (st.ringAt + 1) % RING];
   const c = f.c.getContext('2d');
   c.drawImage(source, 0, 0, f.c.width, f.c.height);
-  f.t = t; f.lm = lm;
+  f.t = t; f.lm = lm; f.ilm = inkLm;
 }
 
 // Tiene come immagine del referto il passo piu' vicino al valore tipico della sessione.
@@ -294,7 +295,12 @@ function onEvent(st, ev) {
   c.drawImage(best.c, 0, 0);
   if (best.lm) drawSkeleton(c, st, best.lm, out.width, out.height);
   st.keyTimes[key] = ev.t;
-  st.keyframes[key] = { score, src: out.toDataURL('image/jpeg', 0.72), label: key === 'ic' ? 'Contatto iniziale, passo tipico' : `Appoggio ${key === 'L' ? 'sinistro' : 'destro'}, passo tipico` };
+  let ink = null;
+  if (best.ilm) try {
+    const ar = out.width / out.height, P = best.ilm.map((l) => ({ x: l.x * ar, y: l.y, v: l.visibility ?? 1 }));
+    ink = inkFigure(P, { aspect: ar, side: st.name === 'side', near: (best.ilm[25].z ?? 0) <= (best.ilm[26].z ?? 0) ? 'L' : 'R' });
+  } catch { /* solo la foto */ }
+  st.keyframes[key] = { score, src: out.toDataURL('image/jpeg', 0.72), ink, label: key === 'ic' ? 'Contatto iniziale, passo tipico' : `Appoggio ${key === 'L' ? 'sinistro' : 'destro'}, passo tipico` };
 }
 
 /* ---------- letture ---------- */
@@ -531,7 +537,7 @@ function startDemo() {
       st.lastDemo = t;
       const lm = simulate(v, t, DEMO_PARAMS);
       handleFrame(st, lm, t);
-      if (session && !calib) stashFrame(st, st.canvas, null, t);
+      if (session && !calib) stashFrame(st, st.canvas, null, t, lm);
     }
     demoRaf = requestAnimationFrame(tick);
   };
@@ -587,7 +593,7 @@ async function finishSession() {
     if (!a.events.length) continue;
     doc.views[st.name] = {
       ...a.summary(), fps: a.fps, quality: a.sessionQuality, sourceName: st.kind === 'demo' ? '' : st.sourceName,
-      keyframes: Object.values(st.keyframes).map(({ label, src }) => ({ label, src })),
+      keyframes: Object.values(st.keyframes).map(({ label, src, ink }) => ({ label, src, ink })),
     };
   }
   refreshButtons();

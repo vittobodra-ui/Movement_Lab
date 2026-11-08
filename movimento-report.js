@@ -98,12 +98,14 @@ export function bindCharts(root) {
   });
 }
 
-// Fotogrammi: solo quelli veri, perché quelli della simulazione sono un fondo scuro con poche linee.
-// In stampa compaiono solo se richiesti, per non consumare inchiostro.
+// Fotogrammi: a schermo la foto, in stampa la figura scura su fondo bianco (la foto solo se richiesta).
+// Della simulazione si mostra solo la figura, perché la foto è un fondo scuro con poche linee.
 export function keysHtml(set) {
-  if (set.simulated || !set.keyframes?.length) return '';
-  return `<div class="keys photos">${set.keyframes.map((k) => `<figure><img src="${k.src}" alt="${esc(k.label)}"><figcaption>${esc(k.label)}</figcaption></figure>`).join('')}</div>`;
+  const ks = (set.keyframes ?? []).filter((k) => k.ink || !set.simulated);
+  if (!ks.length) return '';
+  return `<div class="keys photos">${ks.map((k) => keyFig(k, !set.simulated)).join('')}</div>`;
 }
+export const keyFig = (k, photo = true) => `<figure class="${photo ? '' : 'ink-only'}${k.ink ? '' : ' no-ink'}">${photo ? `<img class="k-photo" src="${k.src}" alt="${esc(k.label)}">` : ''}${k.ink ? `<img class="k-ink" src="${k.ink}" alt="${esc(k.label)}, figura">` : ''}<figcaption>${esc(k.label)}</figcaption></figure>`;
 const PHOTO_KEY = 'lab_mov_foto_stampa';
 const photosInPrint = () => { try { return localStorage.getItem(PHOTO_KEY) === '1'; } catch { return false; } };
 

@@ -81,4 +81,6 @@ select { font: inherit; color: inherit; background: var(--panel); border: 1px so
   .mf, .bk-sec { --floor: #fff; --err: #c8233f; }
   .mf-me, .mf-head, .mf-joint { stroke: #000; }
   .bk-sec, .mf { break-inside: avoid; }
+  .bk-sec .mf-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) !important; gap: 4mm; }
+  .bk-table th, .bk-table td { font-size: 8.6pt; }
 }
