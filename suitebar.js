@@ -7,14 +7,20 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const read = () => { try { return JSON.parse(localStorage.getItem(CLIENT_KEY) ?? 'null') ?? {}; } catch { return {}; } };
 const write = (c) => { try { localStorage.setItem(CLIENT_KEY, JSON.stringify(c)); } catch { /* non salvato */ } };
 
-// Telefono o tablet: Corsa e Accosciate usano la versione a una camera, con comandi grandi.
+// Telefono o tablet: Corsa e Analisi movimento usano la versione a una camera, con comandi grandi.
 const ua = navigator.userAgent;
 export const isPhone = !!navigator.userAgentData?.mobile || /Android|iPhone|iPad|iPod|Mobile/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
 export const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
 // Online (GitHub Pages) l'app funziona anche senza rete e si può installare. Dal programma per PC non serve.
 export const isWeb = location.protocol === 'https:' || !!window.__forceSW;
 if (isPhone) { document.documentElement.classList.add('is-phone'); if (document.body.dataset.platform) document.body.dataset.platform = 'mobile'; }
-if (isWeb && 'serviceWorker' in navigator) navigator.serviceWorker.register(`${base}sw.js`).catch(() => {});
+if (isWeb && 'serviceWorker' in navigator) {
+  // Una versione nuova prende il controllo: si ricarica una volta, così pagina e moduli sono tutti nuovi.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded && !busyFn?.()) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register(`${base}sw.js`, { updateViaCache: 'none' }).then((r) => r.update().catch(() => {})).catch(() => {});
+}
 
 let busyFn = null;
 addEventListener('beforeunload', (e) => { if (busyFn?.()) { e.preventDefault(); e.returnValue = ''; } });
@@ -25,7 +31,7 @@ function buildBar() {
   const bar = document.createElement('div');
   bar.className = 'labbar no-print';
   bar.innerHTML = `<a class="labname" href="${base}#home">Movement Lab</a>
-    <nav aria-label="Programmi">${link('corsa.html', 'Corsa', 'corsa')}${link('movimento.html', 'Accosciate e braccia', 'movimento')}${link('stabilometria.html', 'Stabilometria', 'stabilometria')}${link('bici.html', 'Bici', 'bici')}${link('#clienti', 'Clienti', 'clienti')}${link('#aiuto', 'Aiuto', 'aiuto')}</nav>
+    <nav aria-label="Programmi">${link('corsa.html', 'Corsa', 'corsa')}${link('movimento.html', 'Analisi movimento', 'movimento')}${link('stabilometria.html', 'Stabilometria', 'stabilometria')}${link('bici.html', 'Bici', 'bici')}${link('#clienti', 'Clienti', 'clienti')}${link('#aiuto', 'Aiuto', 'aiuto')}</nav>
     <span class="labclient" id="labClient"></span><button type="button" class="labinstall" id="labInstall" hidden>Installa l’app</button>`;
   document.body.prepend(bar);
   if (isWeb) {

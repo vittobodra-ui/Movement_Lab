@@ -87,7 +87,7 @@ async function renderChecks() {
   const rows = [], add = (state, title, text) => rows.push(`<li class="${state}"><b>${state === 'ok' ? '✓' : '!'}</b><span>${title}<small>${text}</small></span></li>`);
   const brands = navigator.userAgentData?.brands?.map((b) => b.brand).join(' ') ?? navigator.userAgent;
   const chromium = /Chrome|Chromium|Edg/.test(brands);
-  add(chromium || LAB.isIOS ? 'ok' : 'warn', 'Browser', LAB.isIOS ? 'Va bene per Corsa e per Accosciate e braccia.' : chromium ? 'Chrome o Edge: va bene.' : 'Apri il programma con Chrome o Edge: gli altri browser non hanno tutto ciò che serve.');
+  add(chromium || LAB.isIOS ? 'ok' : 'warn', 'Browser', LAB.isIOS ? 'Va bene per Corsa e per Analisi movimento.' : chromium ? 'Chrome o Edge: va bene.' : 'Apri il programma con Chrome o Edge: gli altri browser non hanno tutto ciò che serve.');
   let cams = null;
   try { cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').length; } catch { /* non disponibili */ }
   add(cams ? 'ok' : 'warn', LAB.isPhone ? 'Fotocamera' : 'Webcam', cams == null ? 'Non disponibile in questa pagina.' : cams ? (LAB.isPhone ? 'Trovata. Il browser chiede il permesso al primo uso.' : `${cams === 1 ? 'Una webcam trovata' : `${cams} webcam trovate`}.`) : 'Nessuna trovata. Puoi comunque analizzare file video.');
@@ -162,7 +162,7 @@ async function doImport(e) {
   msg.textContent = 'Importo…';
   try {
     const r = await importAny(JSON.parse(await f.text()));
-    const parts = [r.corsa ? `${r.corsa} di corsa` : null, r.movimento ? `${r.movimento} di accosciate e braccia` : null, r.stabilometria ? `${r.stabilometria} di stabilometria` : null, r.bici ? `${r.bici} di bici` : null].filter(Boolean);
+    const parts = [r.corsa ? `${r.corsa} di corsa` : null, r.movimento ? `${r.movimento} di analisi del movimento` : null, r.stabilometria ? `${r.stabilometria} di stabilometria` : null, r.bici ? `${r.bici} di bici` : null].filter(Boolean);
     msg.textContent = parts.length ? `Importate: ${parts.join(', ')}.` : 'Importati i dati dei clienti.';
     await renderHome();
   } catch { msg.textContent = 'Questo file non è una copia di Movement Lab né un archivio delle app precedenti.'; }
@@ -228,7 +228,7 @@ function movimentoTable(list) {
       rows.push(`<tr class="cross-row"><th scope="row"><a href="${reportHref(a)}">${day(a.at)}</a></th><td>${esc(r.title)}<br><span class="u">una serie per lato</span></td><td class="n"></td><td>${esc(r.label)}</td><td class="n">${it(r.a, r.d)} / ${it(r.b, r.d)}${u} <span class="u">sin / des</span></td><td class="n">${diffCell(r, u, r.d)}</td></tr>`);
     }
   }
-  return `<section class="sheet-sec"><h2>Accosciate e braccia</h2><div class="tablewrap"><table class="metrics"><thead><tr><th>Data</th><th>Esercizio</th><th class="n">Rip.</th><th>Misura al punto massimo</th><th class="n">Valore</th><th class="n">Differenza</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
+  return `<section class="sheet-sec"><h2>Analisi movimento</h2><div class="tablewrap"><table class="metrics"><thead><tr><th>Data</th><th>Esercizio</th><th class="n">Rip.</th><th>Misura al punto massimo</th><th class="n">Valore</th><th class="n">Differenza</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`;
 }
 function stabiloTable(list) {
   const rows = list.flatMap((a) => {

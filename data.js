@@ -8,7 +8,7 @@ const DEF = {
   lab: { db: 'laboratorio-movimento', stores: { clients: 'key' }, main: 'clients' },
 };
 export const MODULES = ['corsa', 'movimento', 'stabilometria', 'bici'];
-export const MODULE_NAMES = { corsa: 'Corsa', movimento: 'Accosciate e braccia', stabilometria: 'Stabilometria', bici: 'Bici' };
+export const MODULE_NAMES = { corsa: 'Corsa', movimento: 'Analisi movimento', stabilometria: 'Stabilometria', bici: 'Bici' };
 
 function open(mod) {
   const d = DEF[mod];
