@@ -108,10 +108,11 @@
 </main>
 
 <div id="runner" class="runner" hidden>
-  <button id="runnerClose" class="runner-close">Chiudi</button>
-  <canvas id="rFig" class="r-fig" aria-label="La tua corsa adesso: in rosso le parti da correggere"></canvas>
+  <div class="runner-tools"><button id="rMirror" aria-pressed="true">Specchio</button><button id="runnerClose" class="runner-close">Chiudi</button></div>
+  <canvas id="rFig" class="r-fig" aria-label="Il tuo video a specchio: in rosso le parti da correggere"></canvas>
   <div class="r-main"><div id="rCad" class="r-cad">–</div><div class="r-unit">passi al minuto <span id="rCadHint"></span></div>
-    <ul id="rAlerts" class="r-alerts" aria-live="polite"></ul></div>
+    <ul id="rAlerts" class="r-alerts" aria-live="polite"></ul>
+    <div id="rCue" class="r-cue" hidden></div></div>
   <div class="r-side">
     <div class="r-m" id="rmDrop"><span>Caduta bacino <i id="rDropA" class="r-asym"></i></span><div class="r-pair"><b id="rDropL" class="ink-l">–</b><b id="rDropR" class="ink-r">–</b></div><small>sinistra, destra</small></div>
     <div class="r-m" id="rmVal"><span>Valgo ginocchio <i id="rValA" class="r-asym"></i></span><div class="r-pair"><b id="rValL" class="ink-l">–</b><b id="rValR" class="ink-r">–</b></div><small>sinistra, destra</small></div>

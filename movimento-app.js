@@ -1,6 +1,7 @@
 import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList, CATEGORIES, categoryOf } from './movimento-measure.js';
 import { reanalyzePack } from './movimento-analysis.js';
-import { setErrorsHtml } from './movimento-errori.js';
+import { setErrorsHtml, cueSvg } from './movimento-errori.js';
+import { drawPose, drawAlerts } from './movimento-overlay.js';
 import { Station } from './movimento-station.js';
 import { nearestPoint } from './movimento-overlay.js';
 import { Review } from './movimento-review.js';
@@ -348,7 +349,6 @@ function onFrame(b, f, a) {
     }
   }
   drawStrip(b, spec);
-  if (b.k === clientBay && !$('client').hidden) renderClient(b);
   const q = a.qualityNow, tag = $(`tag${k}`);
   if (!isPhone) tag.textContent = `${Math.round(a.fps)} fps${a.near && b.view === 'side' ? `, lato ${a.near === 'L' ? 'sinistro' : 'destro'}` : ''}`;
   if (now >= b.hintUntil) {
@@ -365,29 +365,60 @@ function onRepFeedback(b, fb) {
   const head = `Ripetizione ${fb.side ? `${fb.side === 'L' ? 'sin' : 'des'} ` : ''}${fb.i}`;
   const html = ok ? `<span class="fb-ok">✓ ${head}: bene</span>` : `<span class="fb-bad">! ${head}: ${fb.items.map((i) => esc(i.cue)).join(' · ')}</span>`;
   $(`fb${k}`).innerHTML = html;
-  if (k === clientBay) { $('clLast').innerHTML = html; $('clLast').className = `cl-last ${ok ? 'ok' : 'bad'}`; }
+  if (k === clientBay) { $('clLast').innerHTML = html; $('clLast').className = `cl-last ${ok ? 'ok' : 'bad'}`; if (!ok) { repCue = { item: fb.items[0], until: performance.now() + 5000 }; } }
   if (settings.voice && !ok && 'speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(fb.items[0].cue); u.lang = 'it-IT'; u.rate = 1.1; speechSynthesis.speak(u); }
 }
-function renderClient(b) {
-  const cv = $('clientCv'), src = $(`c${b.k}`);
-  const W = cv.clientWidth, H = cv.clientHeight; if (!W || !src.width) return;
-  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-  const c = cv.getContext('2d'), r = Math.min(W / src.width, H / src.height), w = src.width * r, h = src.height * r;
-  c.fillStyle = '#0d1b2b'; c.fillRect(0, 0, W, H); c.drawImage(src, (W - w) / 2, (H - h) / 2, w, h);
-  $('clReps').textContent = b.st.state === 'recording' ? $(`reps${b.k}`).textContent : String(b.st.analyzer?.previewN ?? 0);
+// Disegno a ogni aggiornamento dello schermo: video a specchio, scheletro e segmenti sbagliati in rosso.
+let clientRaf = 0, clientMirror = ls.get('am_client_mirror', '1') === '1', repCue = null, cueShown = '', lastPanel = 0;
+function clientLoop() {
+  if ($('client').hidden) return;
+  const b = bays[clientBay]; if (b?.st) drawClient(b);
+  clientRaf = requestAnimationFrame(clientLoop);
+}
+function drawClient(b) {
+  const cv = $('clientCv'), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.fillStyle = '#0d1b2b'; c.fillRect(0, 0, W, H);
+  const st = b.st, src = st.currentSource, a = st.analyzer, f = a?.last;
+  const sw = src?.videoWidth || src?.width, sh = src?.videoHeight || src?.height;
+  if (src && sw && sh) {
+    const r = Math.min(W / sw, H / sh), w = sw * r, h = sh * r, x0 = (W - w) / 2, y0 = (H - h) / 2;
+    c.save(); c.translate(x0, y0); if (clientMirror) { c.translate(w, 0); c.scale(-1, 1); } c.drawImage(src, 0, 0, w, h); c.restore();
+    if (f && a) {
+      c.save(); c.translate(x0, y0);
+      drawPose(c, f, { W: w, H: h, aspect: a.aspect, mirror: clientMirror, view: st.view, labels: false });
+      drawAlerts(c, f, (st.feedback?.items ?? []).flatMap((i) => i.segs), { W: w, H: h, aspect: a.aspect, mirror: clientMirror });
+      c.restore();
+    }
+  }
+  const now = performance.now(); if (now - lastPanel < 150) return; lastPanel = now;
+  $('clReps').textContent = st.state === 'recording' ? $(`reps${b.k}`).textContent : String(a?.previewN ?? 0);
   $('clVal').innerHTML = $(`hero${b.k}`).innerHTML;
   $('clValL').textContent = $(`hl${b.k}`).textContent;
-  const items = b.st.feedback?.items ?? [];
-  $('clAlerts').innerHTML = items.length ? items.map((i) => `<li>${esc(i.cue)}</li>`).join('') : '';
+  const items = st.feedback?.items ?? [];
+  const html = items.map((i) => `<li>${esc(i.cue)}</li>`).join('');
+  if ($('clAlerts').innerHTML !== html) $('clAlerts').innerHTML = html;
   $('client').classList.toggle('alert', items.length > 0);
+  // Immagine della correzione: l'errore di adesso, oppure quello dell'ultima ripetizione per qualche secondo.
+  const item = items[0] ?? (repCue && repCue.until > now ? repCue.item : null);
+  const key = item ? `${item.key}|${protocol?.id}|${b.view}|${clientMirror}` : '';
+  if (key !== cueShown) {
+    cueShown = key;
+    const svg = item ? cueSvg(item, protocol, b.view, { mirror: clientMirror }) : '';
+    $('clCue').innerHTML = item ? `<h3>Come correggere</h3>${svg}<p><b>${esc(item.cue)}.</b> ${esc(item.plain ?? '')}</p>` : '';
+  }
 }
 function openClient() {
   clientBay = bays[1] && $('clientBay')?.value === '1' ? 1 : 0;
   $('clEx').textContent = `${protocol?.name ?? ''}${bays[clientBay] ? `, ${VIEW_NAMES[bays[clientBay].view].toLowerCase()}` : ''}`;
-  $('clLast').textContent = ''; $('client').hidden = false;
+  $('clLast').textContent = ''; $('clCue').innerHTML = ''; cueShown = ''; repCue = null; $('client').hidden = false;
+  $('clMirror').setAttribute('aria-pressed', String(clientMirror));
+  cancelAnimationFrame(clientRaf); clientRaf = requestAnimationFrame(clientLoop);
   document.documentElement.requestFullscreen?.().catch(() => {});
 }
-function closeClient() { $('client').hidden = true; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+$('clMirror').onclick = () => { clientMirror = !clientMirror; ls.set('am_client_mirror', clientMirror ? '1' : '0'); $('clMirror').setAttribute('aria-pressed', String(clientMirror)); };
+function closeClient() { cancelAnimationFrame(clientRaf); $('client').hidden = true; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
 $('clientBtn').onclick = openClient; $('clientClose').onclick = closeClient;
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('client').hidden) closeClient(); });
 function drawStrip(b, spec) {

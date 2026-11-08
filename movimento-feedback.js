@@ -52,7 +52,7 @@ export class LiveFeedback {
     const items = [];
     for (const f of fs) if (this.count[f.key] >= 3) { this.until[f.key] = { t: now + 700, f }; }
     for (const [k, o] of Object.entries(this.until)) { if (o.t < now) delete this.until[k]; else items.push(o.f); }
-    this.items = items.map((f) => ({ key: f.key, title: f.title, cue: cueOf(f), segs: this.segsFor(f, frame) }));
+    this.items = items.map((f) => ({ key: f.key, title: f.title, cue: cueOf(f), plain: f.plain, parts: f.parts, side: f.side, segs: this.segsFor(f, frame) }));
     return { segs: this.items.flatMap((i) => i.segs), items: this.items };
   }
   // A ripetizione finita: tutti gli errori di quella ripetizione, anche quelli che servono il punto massimo.
@@ -60,7 +60,7 @@ export class LiveFeedback {
     if (this.protocol.custom) return null;
     const extra = Object.fromEntries(Object.entries(rep.ext ?? {}).map(([k, e]) => [k, { min: e[0], max: e[1] }]));
     const fs = setFindings(fakeSet(this.protocol, this.view, rep.at ?? {}, { ...ctx, reps: [rep] }, extra)).filter((f) => f.state === 'flag');
-    this.lastRep = { i: rep.i, side: rep.side, t: rep.t1, items: fs.map((f) => ({ key: f.key, title: f.title, cue: cueOf(f) })) };
+    this.lastRep = { i: rep.i, side: rep.side, t: rep.t1, items: fs.map((f) => ({ key: f.key, title: f.title, cue: cueOf(f), plain: f.plain, parts: f.parts, side: f.side })) };
     return this.lastRep;
   }
 }

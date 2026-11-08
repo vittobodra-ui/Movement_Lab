@@ -559,3 +559,108 @@ export function setErrorsHtml(set, { title = 'Cosa abbiamo visto', compact = fal
   return `<div class="mf"><h3>${esc(title)}</h3><div class="mf-grid${fig ? '' : ' nofig'}">${fig ? `<figure class="mf-fig">${fig}<figcaption>Al punto più basso o più alto del movimento: media delle ripetizioni. Figura schematica.</figcaption></figure>` : ''}
     <div>${findingsHtml(fs, { compact })}${fig ? legendHtml() : ''}</div></div></div>`;
 }
+
+/* ---------- immagine della correzione: così no, così sì ---------- */
+// Per ogni errore due figure schematiche con lo stesso disegno: a sinistra l'errore in rosso, a destra il movimento corretto.
+const lunges = ['split', 'bulgarian', 'lunge'];
+function cueBase(proto, view) {
+  const id = proto.id, fam = proto.family, grp = proto.group;
+  if (grp === 'squat' && view === 'side') {
+    if (lunges.includes(id)) return { kind: 'side', base: { tibia: 12, thigh: 2, trunk: 10, sh: 98, el: 5, lunge: true } };
+    const tr = TRUNK_REF[id] ?? 40, ov = id === 'overhead';
+    return { kind: 'side', base: { tibia: TIBIA_REF[id] ?? 34, thigh: -3, trunk: tr, sh: ov ? 180 + tr : 88 + tr, el: ov ? 0 : 5 }, ov };
+  }
+  if (grp === 'squat') {
+    if (proto.views[view]?.metrics.find((m) => m.id === 'drop')) return { kind: 'front', view, base: { single: true, work: 'L', descent: 30 } };
+    return { kind: 'front', view, base: id === 'overhead' ? { descent: 45, abd_L: 172, abd_R: 172, el_L: 3, el_R: 3 } : { descent: 45 } };
+  }
+  if (fam === 'deadlift' || fam === 'rdl') {
+    if (view !== 'side') return { kind: 'front', view, base: { descent: 20, abd_L: 4, abd_R: 4 } };
+    const r = HINGE_REF[id] ?? HINGE_REF.deadlift; return { kind: 'side', plate: true, base: { ...r, sh: r.trunk, el: 0 } };
+  }
+  if (fam === 'slrdl') return { kind: 'side', plate: true, base: { tibia: 4, thigh: 76, trunk: 82, sh: 82, el: 0, back: true } };
+  if (fam === 'row') return { kind: 'side', plate: true, base: { tibia: 8, thigh: 73, trunk: 45, sh: -55, el: 100 } };
+  if (fam === 'bench') return view === 'side' ? { kind: 'lie', base: { phi: id === 'closegrip' ? 35 : 50, psi: 0 } } : null;
+  if (fam === 'pushup') return { kind: 'push', base: { flex: 110, line: 0 } };
+  if (fam === 'pull' || fam === 'latpull') return view === 'side' ? { kind: 'hangS', base: { flex: 150, trunk: 0, hip: 0 } } : { kind: 'hangF', view, base: { elbow_L: 145, elbow_R: 145 } };
+  if (grp === 'arm') {
+    if (view === 'side') return { kind: 'side', stand: true, base: { thigh: 90, tibia: 0, trunk: 0, ...({ flex: { sh: 180, el: 0 }, ext: { sh: -55, el: 0 }, elbow: { sh: 0, el: 145 }, rot: { sh: 90, el: 90 } }[id] ?? { sh: 0, el: 0 }) } };
+    return { kind: 'front', view, base: id === 'elbow' ? { descent: 0, abd_L: 4, abd_R: 4, el_L: -145, el_R: -145 } : { descent: 0, abd_L: 178, abd_R: 178, el_L: 0, el_R: 0 } };
+  }
+  return null;
+}
+// Cosa cambia nella figura sbagliata, per ciascun errore. b è la posa corretta.
+const CUE_WRONG = {
+  depth: (b, c) => (c.kind === 'push' ? { flex: 40 } : c.kind === 'lie' ? { phi: -40 } : b.lunge ? { thigh: 40, tibia: 8 } : c.plate ? { trunk: 40, sh: 40, thigh: 80 } : b.back ? { trunk: 50, sh: 50 } : { thigh: 28, sh: b.sh }),
+  trunk: (b) => (b.lunge ? { trunk: 35, sh: 123 } : { trunk: 68, sh: b.sh - b.trunk + 68 }),
+  ankle: (b) => ({ tibia: 12, trunk: 62, sh: b.sh - b.trunk + 62 }),
+  arms: (b) => ({ sh: b.sh - 35 }),
+  valgus: (b) => (b.single ? { shin_L: 18 } : { shin_L: 18, shin_R: 18 }),
+  narrow: () => ({ shin_L: 15, shin_R: 15 }), pelvis: () => ({ pelvis: 10 }), shift: () => ({ shift: 25 }), drop: () => ({ drop: 12 }),
+  trunkLat: () => ({ trunkLat: 14 }), shoulders: (b, c) => (c.kind === 'hangF' ? { elbow_R: 95, shTilt: 12 } : { shTilt: 10 }),
+  wrists: (b) => ({ abd_R: Math.max(0, (b.abd_R ?? 170) - 30) }), barTilt: () => ({ shTilt: 8, pelvis: 4 }),
+  barFoot: (b) => ({ sh: b.trunk + 25 }), shoulderBar: () => ({ thigh: 5, trunk: 35, sh: 35, tibia: 20 }),
+  hipsHigh: () => ({ thigh: 72, trunk: 75, sh: 75, tibia: 4 }), hipsLow: () => ({ thigh: 5, trunk: 35, sh: 35, tibia: 20 }),
+  kneeBend: (b) => (b.back ? { thigh: 40, tibia: 20 } : { thigh: 30, tibia: 20, trunk: 60, sh: 60 }),
+  flare: () => ({ phi: 88 }), forearm: () => ({ psi: 35 }), sag: () => ({ line: -24 }), pike: () => ({ line: 24 }),
+  chin: (b, c) => (c.kind === 'hangS' ? { flex: 60 } : { elbow_L: 60, elbow_R: 60 }), swing: (b, c) => (c.kind === 'hangS' ? { trunk: 25 } : { sh: 35 }), kip: () => ({ hip: 60 }),
+  trunkRise: () => ({ trunk: 20, sh: -30 }), short: () => ({ sh: -10, el: 40 }),
+  rom: (b) => (b.el === 145 ? { el: 100 } : b.el === 90 ? { el: 45 } : b.sh === -55 ? { sh: -25 } : { sh: 140 }),
+  comp: (b) => ({ trunk: b.sh > 90 ? -15 : 15 }),
+};
+// Errori che riguardano la posizione in alto o all'inizio: la figura corretta cambia anche lei.
+const CUE_RIGHT = {
+  lockBack: () => ({ thigh: 90, tibia: 0, trunk: 0, sh: 0, el: 0 }),
+  hang: () => ({ elbow_L: 8, elbow_R: 8 }),
+};
+const CUE_WRONG_ALSO = { lockBack: () => ({ thigh: 90, tibia: 0, trunk: -20, sh: -20, el: 0 }), hang: () => ({ elbow_L: 60, elbow_R: 60 }) };
+function sideOverride(key, o) {
+  const m = key.match(/_(L|R)$/); if (!m) return o;
+  // ginocchio, braccio o gomito di un lato solo
+  const s = m[1], out = {};
+  for (const [k, v] of Object.entries(o)) out[k.endsWith('_L') || k.endsWith('_R') ? `${k.slice(0, -2)}_${s}` : k] = v;
+  return out;
+}
+const POSE = {
+  side: (p) => sidePose(p), lie: (p) => liePose(p.phi, p.psi), push: (p) => pushPose(p.flex, p.line), hangS: (p) => hangSide(p.flex, p.trunk, p.hip),
+  front: (p, c) => frontPose(p, c.view), hangF: (p, c) => hangFront(p, c.view),
+};
+export function cueSvg(f, proto, view, { mirror = false } = {}) {
+  const c = proto && !proto.custom ? cueBase(proto, view) : null; if (!c) return '';
+  const k = f.key.replace(/_[LR]$/, '');
+  if (k === 'rom' && /_[LR]$/.test(f.key) && c.kind === 'front') {
+    const s = f.key.slice(-1); f = { ...f, parts: ['uarm', 'farm'], side: s };
+  }
+  let wrongP, rightP = { ...c.base };
+  if (CUE_RIGHT[k]) { rightP = { ...c.base, ...CUE_RIGHT[k](c.base, c) }; wrongP = { ...rightP, ...CUE_WRONG_ALSO[k](c.base, c) }; }
+  else if (CUE_WRONG[k]) {
+    let w = CUE_WRONG[k](c.base, c);
+    if (k === 'rom' && c.kind === 'front') w = c.base.el_L === -145 ? { [`el_${f.side}`]: -95 } : { [`abd_${f.side}`]: 128 };
+    else if (k === 'valgus' && /_[LR]$/.test(f.key)) w = { [`shin_${f.key.slice(-1)}`]: 18 };
+    else w = sideOverride(f.key, w);
+    wrongP = { ...c.base, ...w };
+  } else return '';
+  const mk = POSE[c.kind], front = c.kind === 'front' || c.kind === 'hangF';
+  const wrong = mk(wrongP, c), right = mk(rightP, c), segsOf = front ? frontSegs : sideSegs;
+  const pts = [...segsOf(wrong), ...segsOf(right)].flatMap((s) => [s[1], s[2]]).concat([wrong.Hd, right.Hd], c.plate ? [wrong.W, right.W].flatMap((w) => [[w[0] - 0.125, w[1] + 0.125], [w[0] + 0.125, w[1] - 0.125]]) : []);
+  const minX = Math.min(...pts.map((p) => p[0])), maxX = Math.max(...pts.map((p) => p[0])), minY = Math.min(...pts.map((p) => p[1])) - HEAD, maxY = Math.max(...pts.map((p) => p[1]), 0.03);
+  const PW = 170, PH = 190, sc = Math.min((PW - 24) / ((maxX - minX) || 0.1), (PH - 40) / ((maxY - minY) || 0.1));
+  const errParts = new Set();
+  for (const part of f.parts ?? []) {
+    if (front && ['thigh', 'shin', 'uarm', 'farm', 'foot'].includes(part)) for (const s of f.side ? [f.side] : ['L', 'R']) errParts.add(`${part}_${s}`);
+    else errParts.add(part);
+  }
+  const panel = (pose, ox, bad) => {
+    const P = (p) => { const x = 12 + (p[0] - minX) * sc + ((PW - 24) - (maxX - minX) * sc) / 2; return [ox + (mirror ? PW - x : x), 26 + (p[1] - minY) * sc]; };
+    const ln = (a, b, cls) => { const A = P(a), B = P(b); return `<line x1="${f1(A[0])}" y1="${f1(A[1])}" x2="${f1(B[0])}" y2="${f1(B[1])}" class="${cls}"/>`; };
+    let o = `<line x1="${ox + 6}" x2="${ox + PW - 6}" y1="${f1(P([0, 0.03])[1])}" y2="${f1(P([0, 0.03])[1])}" class="mf-ground"/>`;
+    if (c.plate) { const q = P(pose.W); o += `<circle cx="${f1(q[0])}" cy="${f1(q[1])}" r="${f1(0.125 * sc)}" class="mf-plate"/>`; }
+    if (c.kind === 'lie') o += ln([-0.36, -0.22], [0.22, -0.22], 'mf-ground');
+    if (c.kind === 'hangF' || c.kind === 'hangS') o += ln([minX, -1], [maxX, -1], 'mf-ground');
+    for (const [name, a, b] of segsOf(pose)) o += bad && errParts.has(name) ? ln(a, b, 'mf-err-o') + ln(a, b, 'mf-err-i') : ln(a, b, name.startsWith('r') && pose.RA ? 'mf-me far' : 'mf-me');
+    const h = P(pose.Hd); o += `<circle cx="${f1(h[0])}" cy="${f1(h[1])}" r="${f1(HEAD * sc)}" class="mf-head"/>`;
+    o += `<text x="${ox + PW / 2}" y="16" text-anchor="middle" class="cue-lab ${bad ? 'no' : 'yes'}">${bad ? '✕ Così no' : '✓ Così'}</text>`;
+    return o;
+  };
+  return `<svg viewBox="0 0 ${PW * 2 + 10} ${PH}" class="cue-svg" role="img" aria-label="${esc(f.title)}: a sinistra l’errore, a destra il movimento corretto">${panel(wrong, 0, true)}<line x1="${PW + 5}" x2="${PW + 5}" y1="8" y2="${PH - 8}" class="cue-sep"/>${panel(right, PW + 10, false)}</svg>`;
+}

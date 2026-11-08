@@ -5,6 +5,7 @@ import { pair, level, mark, sideWord, thresholds } from './asym.js';
 import { saveSession } from './corsa-store.js';
 import { renderArchive, renderReport, VIEW_NAMES } from './corsa-report.js';
 import { wheelLimits } from './corsa-ruota.js';
+import { runCueSvg, runCueText } from './corsa-cues.js';
 
 const $ = (id) => document.getElementById(id);
 const NOTE = (m, err = false) => { const s = $('status'); s.textContent = m; s.classList.toggle('err', err); };
@@ -382,7 +383,8 @@ function renderRunner() {
   const html = top.map((i) => `<li>${i.cue}</li>`).join('') + (items.length > 2 ? `<li class="more">e altre ${items.length - 2}</li>` : '');
   if ($('rAlerts').innerHTML !== html) $('rAlerts').innerHTML = html;
   $('runner').classList.toggle('alert', items.length > 0);
-  drawRunnerFig([...items].sort((a, b) => rank(a) - rank(b)));
+  runnerItems = [...items].sort((a, b) => rank(a) - rank(b));
+  renderRunnerCue(top);
 }
 
 /* ---------- avvisi per il corridore: stesse soglie della ruota della corsa ---------- */
@@ -406,35 +408,82 @@ function runnerFaults(cad, cadMin) {
   if (cross != null && cross > 25) out.push({ key: 'cross', cue: 'Piedi meno incrociati', view: 'front', segs: [[27, 31], [28, 32]] });
   return out;
 }
-// Figura dal vivo, ingrandita sul corridore: bianca su fondo scuro, in rosso le parti con un errore.
-function drawRunnerFig(items) {
+// Video del corridore a specchio, ingrandito su di lui, con lo scheletro e in rosso le parti da correggere.
+// Disegnato a ogni fotogramma dello schermo: la figura si muove fluida anche tra un riconoscimento e l'altro.
+let runnerItems = [], runnerRaf = 0, runnerCueKey = '';
+const runnerMirror = () => $('rMirror').getAttribute('aria-pressed') === 'true';
+function runnerView(items) {
+  const first = items.find((i) => i.view !== 'any')?.view;
+  const order = first === 'front' && (views.rear.lastLm || views.front.lastLm) ? ['rear', 'front', 'side'] : ['side', 'rear', 'front'];
+  return order.find((k) => views[k].lastLm);
+}
+function drawRunnerFig() {
   const cv = $('rFig'), W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
   const dpr = devicePixelRatio || 1;
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
-  const first = items.find((i) => i.view !== 'any')?.view;
-  const order = first === 'front' && (views.rear.lastLm || views.front.lastLm) ? ['rear', 'front', 'side'] : ['side', 'rear', 'front'];
-  const v = order.find((k) => views[k].lastLm);
-  if (!v) { c.fillStyle = '#a9b8c5'; c.font = '18px Bahnschrift, Barlow, Segoe UI, sans-serif'; c.fillText('La figura compare quando una camera vede il corridore', 12, H / 2); return; }
-  const st = views[v], mir = $(`mir_${v}`).checked;
-  const P = st.lastLm.map((l) => ({ x: mir ? 1 - l.x : l.x, y: l.y, v: l.visibility ?? 1 }));
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.fillStyle = '#0d1b2b'; c.fillRect(0, 0, W, H);
+  const items = runnerItems, v = runnerView(items);
+  if (!v) { c.fillStyle = '#a9b8c5'; c.font = '18px Bahnschrift, Barlow, Segoe UI, sans-serif'; c.fillText('Il video compare quando una camera vede il corridore', 12, H / 2); return; }
+  const st = views[v], mir = runnerMirror();
+  // Destra e sinistra come le vede l'analisi, poi i punti in coordinate dell'immagine.
+  const raw = st.lastLm.map((l) => ({ x: l.x, y: l.y }));
   if (v !== 'side') {
-    const dx = P[24].x - P[23].x;
-    if (v === 'rear' ? dx < 0 : dx > 0) for (const [a, b] of [[11, 12], [13, 14], [15, 16], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32]]) { const t = P[a]; P[a] = P[b]; P[b] = t; }
+    const chk = $(`mir_${v}`).checked, dx = (chk ? -1 : 1) * (raw[24].x - raw[23].x);
+    if (v === 'rear' ? dx < 0 : dx > 0) for (const [a, b] of [[11, 12], [13, 14], [15, 16], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32]]) { const t = raw[a]; raw[a] = raw[b]; raw[b] = t; }
   }
-  const ar = (st.canvas.width || 16) / (st.canvas.height || 9), idx = [0, 11, 12, 23, 24, 25, 26, 27, 28, 31, 32];
-  const xs = idx.map((i) => P[i].x * ar), ys = idx.map((i) => P[i].y);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys) - 0.08, y1 = Math.max(...ys) + 0.02;
-  const s = Math.min(W / ((x1 - x0) * 1.5 || 1), H / ((y1 - y0) * 1.1 || 1));
-  const M = (p) => ({ x: W / 2 + (p.x * ar - (x0 + x1) / 2) * s, y: H / 2 + (p.y - (y0 + y1) / 2) * s });
-  const lw = Math.max(5, H / 70);
-  const line = (segs, col, w) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.beginPath(); for (const [a, b] of segs) { const A = M(P[a]), B = M(P[b]); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); } c.stroke(); };
-  line([...BONES_CENTER, ...BONES_L, ...BONES_R], '#e6edf3', lw);
-  const nose = M(P[0]); c.strokeStyle = '#e6edf3'; c.lineWidth = lw * 0.8; c.beginPath(); c.arc(nose.x, nose.y, lw * 2.2, 0, 7); c.stroke();
+  // Movimento ammorbidito tra un riconoscimento e il successivo.
+  if (!st.dispLm || st.dispView !== v || st.dispLm.length !== raw.length) { st.dispLm = raw.map((p) => ({ ...p })); st.dispView = v; }
+  for (let i = 0; i < raw.length; i++) { st.dispLm[i].x += (raw[i].x - st.dispLm[i].x) * 0.45; st.dispLm[i].y += (raw[i].y - st.dispLm[i].y) * 0.45; }
+  const P = st.dispLm, vid = st.kind !== 'demo' && st.video.videoWidth ? st.video : null;
+  const sw = vid ? vid.videoWidth : 1280, sh = vid ? vid.videoHeight : 720;
+  // Riquadro attorno al corridore, che si sposta lentamente.
+  const idx = [0, 11, 12, 15, 16, 23, 24, 27, 28, 31, 32];
+  const xs = idx.map((i) => P[i].x * sw), ys = idx.map((i) => P[i].y * sh);
+  let bh = (Math.max(...ys) - Math.min(...ys)) * 1.35, bw = (Math.max(...xs) - Math.min(...xs)) * 1.5;
+  bh = Math.max(bh, bw * H / W, sh * 0.35); bw = bh * W / H;
+  const want = { x: (Math.max(...xs) + Math.min(...xs)) / 2, y: (Math.max(...ys) + Math.min(...ys)) / 2, h: bh };
+  const box = st.dispBox ??= want;
+  box.x += (want.x - box.x) * 0.08; box.y += (want.y - box.y) * 0.08; box.h += (want.h - box.h) * 0.05;
+  const bH = box.h, bW = bH * W / H, sx = box.x - bW / 2, sy = box.y - bH / 2, s = H / bH;
+  const M = (p) => { const x = (p.x * sw - sx) * s; return { x: mir ? W - x : x, y: (p.y * sh - sy) * s }; };
+  if (vid) {
+    c.save(); if (mir) { c.translate(W, 0); c.scale(-1, 1); }
+    c.drawImage(vid, sx, sy, bW, bH, 0, 0, W, H); c.restore();
+    c.fillStyle = 'rgba(13,27,43,.25)'; c.fillRect(0, 0, W, H);
+  } else {
+    const g = M({ x: 0, y: 0.86 }).y; c.strokeStyle = '#30414f'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, g); c.lineTo(W, g); c.stroke();
+  }
+  const lw = Math.max(4, H / 90);
+  const line = (segs, col, w) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); for (const [a, b] of segs) { const A = M(P[a]), B = M(P[b]); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); } c.stroke(); };
+  const all = [...BONES_CENTER, ...BONES_L, ...BONES_R];
+  line(all, 'rgba(0,0,0,.45)', lw * 1.8); line(all, '#e6edf3', lw);
+  c.fillStyle = '#e6edf3';
+  for (const i of [23, 24, 25, 26, 27, 28]) { const q = M(P[i]); c.beginPath(); c.arc(q.x, q.y, lw * 0.9, 0, 7); c.fill(); }
+  const hd = M(P[0]), shc = M({ x: (P[11].x + P[12].x) / 2, y: (P[11].y + P[12].y) / 2 }), hr = Math.max(lw * 2, Math.hypot(hd.x - shc.x, hd.y - shc.y) * 0.45);
+  c.lineWidth = lw * 0.9; c.strokeStyle = '#e6edf3'; c.beginPath(); c.arc(hd.x, hd.y, hr, 0, 7); c.stroke();
   const red = items.filter((i) => i.view === 'any' || (i.view === 'side') === (v === 'side')).flatMap((i) => i.segs);
-  if (red.length) { line(red, 'rgba(0,0,0,.6)', lw * 2.6); line(red, '#ff2d4a', lw * 1.8); }
-  c.fillStyle = '#a9b8c5'; c.font = `${Math.round(H / 26)}px Bahnschrift, Barlow, Segoe UI, sans-serif`; c.fillText(VIEW_NAMES[v], 8, H - 8);
+  if (red.length) {
+    const pulse = 1 + 0.2 * Math.sin(performance.now() / 160);
+    line(red, 'rgba(0,0,0,.7)', lw * 3.2 * pulse); line(red, '#ff2d4a', lw * 2.2 * pulse);
+  }
+  c.fillStyle = 'rgba(13,27,43,.7)'; c.fillRect(0, H - 30, W, 30);
+  c.fillStyle = '#e6edf3'; c.font = '15px Bahnschrift, Barlow, Segoe UI, sans-serif'; c.fillText(`${VIEW_NAMES[v]}${mir ? ', a specchio' : ''}`, 10, H - 10);
 }
+function renderRunnerCue(top) {
+  const it = top[0], key = it ? `${it.key}|${runnerMirror()}` : '';
+  if (key === runnerCueKey) return;
+  runnerCueKey = key;
+  $('rCue').innerHTML = it ? `<h3>Come correggere</h3>${runCueSvg(it.key, { mirror: runnerMirror(), side: it.key.endsWith('_R') ? 'R' : 'L' })}<p>${runCueText(it.key)}</p>` : '';
+  $('rCue').hidden = !it;
+}
+function runnerLoop() {
+  if ($('runner').hidden) { runnerRaf = 0; return; }
+  drawRunnerFig();
+  runnerRaf = requestAnimationFrame(runnerLoop);
+}
+function openRunner() { $('runner').hidden = false; runnerCueKey = '~'; if (!runnerRaf) runnerRaf = requestAnimationFrame(runnerLoop); }
+function closeRunner() { $('runner').hidden = true; if (runnerRaf) cancelAnimationFrame(runnerRaf); runnerRaf = 0; }
 
 function drawRibbon(canvas) {
   const dpr = devicePixelRatio || 1;
@@ -620,9 +669,15 @@ $('demo').onclick = () => (demoActive ? stopDemo() : startDemo());
 $('metro').onclick = toggleMetronome;
 $('goalsBtn').onclick = (e) => { const g = $('goals'); g.hidden = !g.hidden; e.target.setAttribute('aria-expanded', String(!g.hidden)); };
 $('sessionForm').onsubmit = (e) => e.preventDefault();
-$('runnerBtn').onclick = () => { $('runner').hidden = false; document.documentElement.requestFullscreen?.().catch(() => {}); };
-$('runnerClose').onclick = () => { $('runner').hidden = true; if (document.fullscreenElement) document.exitFullscreen(); };
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('runner').hidden = true; });
+$('runnerBtn').onclick = () => { openRunner(); document.documentElement.requestFullscreen?.().catch(() => {}); };
+$('runnerClose').onclick = () => { closeRunner(); if (document.fullscreenElement) document.exitFullscreen(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRunner(); });
+try { if (localStorage.getItem('corsa_runner_mirror') === '0') $('rMirror').setAttribute('aria-pressed', 'false'); } catch {}
+$('rMirror').onclick = () => {
+  const on = !runnerMirror(); $('rMirror').setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('corsa_runner_mirror', on ? '1' : '0'); } catch {}
+  runnerCueKey = '~';
+};
 addEventListener('hashchange', route);
 window.LAB.attach({ name: 'person', height: 'height', datalist: 'people', busy: () => !!session });
 route();

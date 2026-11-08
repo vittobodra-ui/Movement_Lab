@@ -297,21 +297,36 @@ body[data-platform="mobile"] .exsel select { font-size: 1rem; }
 /* Feedback a fine ripetizione e schermo per il cliente */
 .repfb { min-height: 1.4em; font-size: .95rem; font-weight: 600; }
 .fb-ok { color: #2fb36b; } .fb-bad { color: #ff5a6e; }
-.client { position: fixed; inset: 0; z-index: 30; background: #0d1b2b; color: #fff; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28vw); }
+.client { position: fixed; inset: 0; z-index: 30; background: #0d1b2b; color: #fff; display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 33vw); }
 .client canvas { width: 100%; height: 100%; display: block; }
 .client.alert { box-shadow: inset 0 0 0 10px #ff2d4a; }
-.cl-side { padding: 3vh 2vw; display: flex; flex-direction: column; gap: 2.5vh; overflow: hidden; }
-.cl-ex { margin: 0; padding-right: 90px; color: #a9b8c5; font-size: clamp(14px, 1.6vw, 22px); }
-.cl-reps b { display: block; font-size: clamp(60px, 11vw, 170px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cl-side { padding: 3vh 1.6vw; display: flex; flex-direction: column; gap: 1.6vh; overflow: auto; }
+.cl-ex { margin: 0; padding-right: 210px; color: #a9b8c5; font-size: clamp(14px, 1.6vw, 22px); }
+.cl-reps b { display: block; font-size: clamp(44px, 5.5vw, 90px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cl-reps span, .cl-val span { color: #a9b8c5; font-size: clamp(14px, 1.5vw, 22px); }
-.cl-val div { font-size: clamp(36px, 5vw, 80px); font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 1.5vw; }
+.cl-val div { font-size: clamp(28px, 3.4vw, 56px); font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 1.5vw; }
 .cl-val small { display: block; font-size: 14px; font-weight: 400; color: #a9b8c5; }
 .cl-alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 1vh; }
-.cl-alerts li { background: #ff2d4a; color: #fff; font-weight: 700; font-size: clamp(22px, 2.8vw, 46px); padding: .3em .5em; border-radius: 4px; }
+.cl-alerts li { background: #ff2d4a; color: #fff; font-weight: 700; font-size: clamp(20px, 2.3vw, 38px); padding: .3em .5em; border-radius: 4px; }
 .cl-alerts li::before { content: '! '; }
-.cl-last { font-size: clamp(18px, 2vw, 32px); font-weight: 600; margin-top: auto; }
+.cl-last { font-size: clamp(16px, 1.6vw, 26px); font-weight: 600; margin-top: auto; }
 .cl-last.ok { color: #2fb36b; } .cl-last.bad { color: #ff7a8a; }
-.cl-close { position: absolute; top: 12px; right: 16px; background: #0d1b2b; color: #fff; border-color: #fff; }
+.cl-tools { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
+.cl-tools button { background: #0d1b2b; color: #fff; border-color: #fff; }
+.cl-tools button[aria-pressed="true"] { background: #fff; color: #0d1b2b; }
+.cl-cue { --ink: #fff; --ink2: #a9b8c5; --floor: #0d1b2b; --err: #ff4d64; background: #14273a; border-radius: 6px; padding: 10px 12px; }
+.cl-cue:empty { display: none; }
+.cl-cue h3 { margin: 0 0 4px; font-size: clamp(16px, 1.5vw, 22px); color: #a9b8c5; font-weight: 600; }
+.cl-cue p { margin: 6px 0 0; font-size: clamp(15px, 1.4vw, 21px); line-height: 1.3; }
+.cue-svg { display: block; width: 100%; height: auto; font-family: var(--font); }
+.cue-svg .mf-ground { stroke: #6c8093; stroke-width: 1.5; }
+.cue-svg .mf-me, .cue-svg .mf-head { stroke: var(--ink); stroke-width: 4; fill: none; stroke-linecap: round; }
+.cue-svg .mf-me.far { stroke: #6c8093; stroke-width: 3; }
+.cue-svg .mf-plate { fill: none; stroke: var(--ink); stroke-width: 2; }
+.cue-svg .mf-err-o { stroke: var(--err); stroke-width: 11; stroke-linecap: round; }
+.cue-svg .mf-err-i { stroke: var(--floor); stroke-width: 4; stroke-linecap: round; }
+.cue-sep { stroke: #30414f; stroke-width: 1.5; }
+.cue-lab { font-size: 16px; font-weight: 700; } .cue-lab.no { fill: #ff6b82; } .cue-lab.yes { fill: #4ad18c; }
 @media (max-width: 760px), (orientation: portrait) { .client { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } .cl-side { padding: 12px 16px; gap: 8px; } .cl-reps b { font-size: 64px; } }
 
 /* Pagina iniziale: sei riquadri con il menu del movimento */
