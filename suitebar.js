@@ -1,5 +1,6 @@
 // Barra comune in cima a ogni programma e cliente attuale, condiviso tra le pagine.
 import { saveClient, getClient, clientNames, normName, cleanName } from './data.js';
+import { LANG, setLang } from './i18n.js';
 
 const base = new URL('./', import.meta.url).href;
 const CLIENT_KEY = 'lab_client', STUDIO_KEY = 'lab_studio';
@@ -32,8 +33,10 @@ function buildBar() {
   bar.className = 'labbar no-print';
   bar.innerHTML = `<a class="labname" href="${base}#home">Movement Lab</a>
     <nav aria-label="Programmi">${link('corsa.html', 'Corsa', 'corsa')}${link('movimento.html', 'Analisi movimento', 'movimento')}${link('stabilometria.html', 'Stabilometria', 'stabilometria')}${link('bici.html', 'Bici', 'bici')}${link('#clienti', 'Clienti', 'clienti')}${link('#aiuto', 'Aiuto', 'aiuto')}</nav>
-    <span class="labclient" id="labClient"></span><button type="button" class="labinstall" id="labInstall" hidden>Installa l’app</button>`;
+    <span class="labclient" id="labClient"></span><button type="button" class="labinstall" id="labInstall" hidden>Installa l’app</button>
+    <span class="lablang" role="group" aria-label="Lingua / Language" data-no-tr><button type="button" data-lang="it" aria-pressed="${LANG === 'it'}" title="Italiano">IT</button><button type="button" data-lang="en" aria-pressed="${LANG === 'en'}" title="English">EN</button></span>`;
   document.body.prepend(bar);
+  bar.querySelectorAll('.lablang button').forEach((b) => { b.onclick = () => { if (b.dataset.lang !== LANG && !busyFn?.()) setLang(b.dataset.lang); }; });
   if (isWeb) {
     let ev = null;
     const btn = bar.querySelector('#labInstall');

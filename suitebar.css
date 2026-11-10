@@ -131,3 +131,8 @@
 .stage.xf-zoomed canvas:active { cursor: grabbing; }
 @media print { .xf-tools { display: none !important; } }
 .stage:has(.placeholder:not([hidden])) .xf-tools { display: none; }
+
+/* Lingua */
+.labbar .lablang { display: inline-flex; border: 1px solid #a7b8c7; border-radius: 6px; overflow: hidden; margin-left: .2rem; }
+.labbar .lablang button { background: transparent; color: #dfe9f1; border: 0; border-radius: 0; min-height: 0; padding: .15rem .5rem; font: 600 .8rem/1.2 inherit; letter-spacing: .04em; cursor: pointer; }
+.labbar .lablang button[aria-pressed="true"] { background: #dfe9f1; color: #0d1b2b; }
