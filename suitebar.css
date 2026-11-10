@@ -121,3 +121,13 @@
   .report.print-photos .keys .k-photo { display: block; width: 100%; }
   .report.print-photos .keys figure:has(.k-photo) .k-ink { display: none; }
 }
+
+/* Rotazione e zoom della camera, sopra il video */
+.xf-tools { position: absolute; right: 8px; bottom: 8px; z-index: 3; display: flex; align-items: center; gap: 4px; background: rgba(13, 27, 43, .72); border-radius: 8px; padding: 4px; color: #e6edf3; font: 600 13px/1 "Bahnschrift", "Barlow", "Segoe UI", sans-serif; }
+.xf-tools button { min-width: 34px; min-height: 34px; padding: 0 .4rem; border: 1px solid #e6edf355; background: transparent; color: #e6edf3; border-radius: 6px; font-size: 18px; line-height: 1; cursor: pointer; }
+.xf-tools button:hover { background: #ffffff1f; }
+.xf-tools .xf-z { min-width: 3.6em; text-align: center; font-variant-numeric: tabular-nums; }
+.stage.xf-zoomed canvas { cursor: grab; }
+.stage.xf-zoomed canvas:active { cursor: grabbing; }
+@media print { .xf-tools { display: none !important; } }
+.stage:has(.placeholder:not([hidden])) .xf-tools { display: none; }

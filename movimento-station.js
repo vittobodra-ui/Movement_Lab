@@ -1,5 +1,6 @@
 // Una postazione di ripresa: sorgente video, riconoscimento, disegno, serie registrata.
 import { SetAnalyzer, pathPoint, median } from './movimento-analysis.js';
+import { CamXf } from './movimento-camxf.js';
 import { inkFigure } from './movimento-ink.js';
 import { drawPose, drawAlerts } from './movimento-overlay.js';
 import { LiveFeedback } from './movimento-feedback.js';
@@ -17,6 +18,7 @@ export class Station {
     this.offC = this.off.getContext('2d');
     this.lastTs = 0; this.loop = 0; this.mirror = false; this.baseTilt = null; this.errors = 0; this.goal = null; this.goalHit = false;
     this.peakCand = {}; this.keys = {}; this.snaps = []; this.trail = [];
+    this.xf = new CamXf();
   }
 
   configure(protocol, view, sideMode = 'auto') {
@@ -24,7 +26,23 @@ export class Station {
     this.baseTilt = null; // la camera si è spostata: la calibrazione va rifatta
     this.newAnalyzer(false);
   }
-  get aspect() { const v = this.video; if (this.kind === 'demo') return this.demoAspect; return v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9; }
+  get aspect() { const v = this.video; if (this.kind === 'demo') return this.demoAspect; if (!v.videoWidth || !v.videoHeight) return 16 / 9; const [w, h] = this.xf.size(v); return w / h; }
+  // Rotazione e zoom: attivi solo con camera o file.
+  get xfOn() { return this.kind !== 'demo' && this.xf.active; }
+  srcSize() { const v = this.video; return this.xf.active ? this.xf.size(v) : [v.videoWidth || 1280, v.videoHeight || 720]; }
+  setXf(o, final = true) {
+    this.xf.set(o);
+    this.video.style.visibility = this.xfOn ? 'hidden' : '';
+    if (this.kind === 'demo' || !this.video.videoWidth) return;
+    const [w, h] = this.srcSize(); this.setSize(w, h);
+    if (this.analyzer) this.analyzer.aspect = this.aspect;
+    if (final && this.state !== 'recording') { this.baseTilt = null; this.allocKeys(); this.newAnalyzer(false); }
+    if (this.video.paused) {
+      // Video fermo: ridisegna subito l'anteprima con la nuova inquadratura.
+      const src = this.xfOn ? this.xf.draw(this.video) : this.video, c = this.canvas.getContext('2d'), W = this.canvas.width, H = this.canvas.height;
+      c.save(); if (this.mirror) { c.translate(W, 0); c.scale(-1, 1); } c.drawImage(src, 0, 0, W, H); c.restore();
+    }
+  }
   newAnalyzer(recording) {
     if (!this.protocol) return;
     this.analyzer = new SetAnalyzer({
@@ -130,7 +148,8 @@ export class Station {
   async afterSource() {
     const v = this.video;
     if (!v.videoWidth) await new Promise((r) => { const check = () => (v.videoWidth ? r() : setTimeout(check, 50)); check(); setTimeout(r, 3000); });
-    this.setSize(v.videoWidth || 1280, v.videoHeight || 720);
+    this.video.style.visibility = this.xfOn ? 'hidden' : '';
+    this.setSize(...this.srcSize());
     this.newAnalyzer(false); this.allocKeys();
     const ok = await this.ensurePose();
     if (!ok) return;
@@ -142,12 +161,12 @@ export class Station {
       this.processVideo(this.kind === 'file' ? meta.mediaTime * 1000 : (meta.captureTime ?? now));
     };
     v.requestVideoFrameCallback(cb);
-    v.onresize = () => { if (v.videoWidth) { this.setSize(v.videoWidth, v.videoHeight); if (this.analyzer) this.analyzer.aspect = this.aspect; if (this.state !== 'recording') { this.allocKeys(); this.newAnalyzer(false); } } };
+    v.onresize = () => { if (v.videoWidth) { this.setSize(...this.srcSize()); if (this.analyzer) this.analyzer.aspect = this.aspect; if (this.state !== 'recording') { this.allocKeys(); this.newAnalyzer(false); } } };
   }
 
   processVideo(t) {
     if (!this.pose) return;
-    const v = this.video;
+    const v = this.xfOn ? this.xf.draw(this.video) : this.video;
     this.offC.drawImage(v, 0, 0, this.off.width, this.off.height);
     let raw = null;
     try {
@@ -246,10 +265,12 @@ export class Station {
     this.keys = {}; this.snaps = []; for (const k of Object.values(this.peakCand)) { k.frame = null; }
     this.state = 'recording'; this.startPerf = performance.now();
     this.recBlob = null; this.recT0 = null; this.chunks = [];
-    if (this.kind === 'camera' && this.settings().record && window.MediaRecorder) {
+    if ((this.kind === 'camera' || (this.kind === 'file' && this.xfOn)) && this.settings().record && window.MediaRecorder) {
       const mime = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
       try {
-        this.rec = new MediaRecorder(this.stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
+        // Con rotazione o zoom si registra l'immagine già girata, così il riesame coincide con l'analisi.
+        const stream = this.xfOn && this.xf.canvas.captureStream ? this.xf.canvas.captureStream(30) : this.stream;
+        this.rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
         this.rec.ondataavailable = (e) => { if (e.data?.size) this.chunks.push(e.data); };
         this.rec.onstart = () => { this.recT0 = performance.now(); };
         this.rec.start(1000);
@@ -257,7 +278,7 @@ export class Station {
     }
     if (this.kind === 'file') {
       const v = this.video;
-      v.currentTime = 0; v.playbackRate = parseFloat(this.settings().rate) || 1;
+      v.currentTime = 0; v.playbackRate = this.xfOn ? 1 : parseFloat(this.settings().rate) || 1;
       v.onended = () => this.onEnded?.(this);
       v.play().catch(() => this.onMessage?.('Il video non parte: riprova.', true));
     }
@@ -271,7 +292,7 @@ export class Station {
     await recStopped;
     const summary = a.summary();
     let blob = null, videoOffset = 0, mime = null;
-    if (this.kind === 'camera' && this.chunks.length) { blob = new Blob(this.chunks, { type: this.rec.mimeType }); videoOffset = this.recT0 ?? this.startPerf; mime = this.rec.mimeType; }
+    if (this.chunks.length) { blob = new Blob(this.chunks, { type: this.rec.mimeType }); videoOffset = this.kind === 'camera' ? this.recT0 ?? this.startPerf : 0; mime = this.rec.mimeType; }
     else if (this.kind === 'file') { blob = this.file; videoOffset = 0; mime = this.file.type; }
     this.rec = null;
     const keyframes = [];

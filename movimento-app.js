@@ -3,6 +3,7 @@ import { reanalyzePack } from './movimento-analysis.js';
 import { setErrorsHtml, cueSvg } from './movimento-errori.js';
 import { drawPose, drawAlerts } from './movimento-overlay.js';
 import { Station } from './movimento-station.js';
+import { xfControls } from './movimento-camxf.js';
 import { nearestPoint } from './movimento-overlay.js';
 import { Review } from './movimento-review.js';
 import { renderReport, renderArchive, repsTable, bindCharts, download, it, setName, fmtDate } from './movimento-report.js';
@@ -190,7 +191,12 @@ async function initBay(k, view, startCam = true) {
   $(`file${k}`).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setDemoPressed(k, false); await b.st.useFile(f); refreshGo(); e.target.value = ''; $(`src${k}`).value = 'file'; };
   $(`demo${k}`).onclick = () => toggleDemo(b);
   $(`src${k}`).onchange = (e) => chooseSource(b, e.target.value);
-  $(`c${k}`).addEventListener('pointerdown', (e) => onStageTap(b, e));
+  $(`c${k}`).addEventListener('click', (e) => { if (!$(`c${k}`).parentElement.dataset.dragged) onStageTap(b, e); });
+  // Rotazione e zoom, ricordati per ogni camera.
+  b.xfUi = xfControls($(`c${k}`).parentElement, b.st.xf, (final) => {
+    b.st.setXf({}, final);
+    if (final && b.st.kind === 'camera' && (b.st.sourceName || b.deviceId)) ls.set(`am_xf_${b.st.sourceName || b.deviceId}`, JSON.stringify(b.st.xf.json));
+  });
   renderRows(b);
   await fillSources(k);
   if (startCam) await startDefaultSource(b);
@@ -207,6 +213,7 @@ async function loadRedo(b) {
   b.st.mirror = !!media.mirror; $(`mir${b.k}`).checked = b.st.mirror;
   if (set.sideMode && $(`side${b.k}`).querySelector(`option[value="${set.sideMode}"]`)) { $(`side${b.k}`).value = set.sideMode; b.st.sideMode = set.sideMode; }
   if (set.load) $(`load${b.k}`).value = set.load;
+  b.st.xf.set({ rot: 0, zoom: 1, cx: 0.5, cy: 0.5 }); b.xfUi?.refresh(); // il video salvato è già girato
   await b.st.useFile(file); $(`src${b.k}`).value = 'file';
   $('go').textContent = 'Rianalizza il video';
   setHint(b.k, 'Video della serie caricato. Controlla esercizio, ripresa e lato, poi premi “Rianalizza il video”: il risultato sostituirà quello salvato.', false, 60000);
@@ -264,6 +271,8 @@ async function useCamera(b, deviceId) {
   const ok = await b.st.useCamera(deviceId, b.facing ?? 'environment');
   if (ok) {
     b.deviceId = b.st.stream?.getVideoTracks()[0]?.getSettings().deviceId;
+    let saved = null; try { saved = JSON.parse(ls.get(`am_xf_${b.st.sourceName || b.deviceId}`, 'null')); } catch { /* nessuna */ }
+    b.st.setXf(saved ?? { rot: 0, zoom: 1, cx: 0.5, cy: 0.5 }); b.xfUi?.refresh();
     await fillSources(b.k);
     const opt = [...$(`src${b.k}`).options].find((o) => o.value === `cam:${b.deviceId}`);
     if (opt) $(`src${b.k}`).value = opt.value;

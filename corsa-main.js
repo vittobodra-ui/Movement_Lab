@@ -7,6 +7,7 @@ import { renderArchive, renderReport, VIEW_NAMES } from './corsa-report.js';
 import { wheelLimits } from './corsa-ruota.js';
 import { runCueSvg, runCueText } from './corsa-cues.js';
 import { inkFigure } from './corsa-ink.js';
+import { CamXf, xfControls } from './corsa-camxf.js';
 
 const $ = (id) => document.getElementById(id);
 const NOTE = (m, err = false) => { const s = $('status'); s.textContent = m; s.classList.toggle('err', err); };
@@ -66,9 +67,10 @@ function buildBays() {
     views[v] = {
       name: v, kind: 'none', video: $(`vid_${v}`), canvas: $(`ovl_${v}`), analyzer: null, pose: null, poseKind: null,
       ring: [], ringAt: 0, lastLm: null, stream: null, rvfcOn: false, lastTs: 0, errors: 0, ended: false, sourceName: '', keyframes: {}, keyTimes: {},
-      calibTilts: [],
+      calibTilts: [], xf: new CamXf(), deviceId: null,
     };
     resetAnalyzer(views[v]);
+    views[v].xfUi = xfControls($(`ovl_${v}`).parentElement, views[v].xf, (final) => applyXf(views[v], final));
     $(`src_${v}`).onchange = (e) => chooseSource(views[v], e.target.value);
     $(`file_${v}`).onchange = (e) => { if (e.target.files[0]) useFile(views[v], e.target.files[0]); };
     $(`mir_${v}`).onchange = (e) => { views[v].analyzer.mirror = e.target.checked; };
@@ -90,8 +92,23 @@ function fillSourceMenus() {
   }
 }
 
+// Rotazione e zoom: l'analisi lavora sull'immagine già girata e ingrandita.
+const xfOn = (st) => (st.kind === 'camera' || st.kind === 'file') && st.xf.active && st.video.videoWidth > 0;
+const vsrc = (st) => (xfOn(st) ? st.xf.draw(st.video) : st.video);
+const vsize = (st) => (xfOn(st) ? st.xf.size(st.video) : [st.video.videoWidth || 1280, st.video.videoHeight || 720]);
+function applyXf(st, final) {
+  if (st.kind !== 'camera' && st.kind !== 'file') return;
+  st.video.style.visibility = xfOn(st) ? 'hidden' : '';
+  sizeCanvas(st);
+  if (final) {
+    if (!session) { resetAnalyzer(st); allocRing(st); }
+    if (st.kind === 'camera' && st.deviceId) { try { localStorage.setItem(`corsa_xf_${st.sourceName || st.deviceId}`, JSON.stringify(st.xf.json)); } catch { /* non salvato */ } }
+  }
+  if (st.video.paused) { if (xfOn(st)) vsrc(st); drawOverlay(st, null); }
+}
+
 function resetAnalyzer(st) {
-  const aspect = st.kind === 'demo' ? 16 / 9 : (st.video.videoWidth && st.video.videoHeight ? st.video.videoWidth / st.video.videoHeight : 16 / 9);
+  const [aw, ah] = vsize(st), aspect = st.kind === 'demo' ? 16 / 9 : aw / ah;
   st.analyzer = new RunAnalyzer({ view: st.name, aspect, mirror: $(`mir_${st.name}`).checked, baselineTilt, onEvent: (ev) => onEvent(st, ev) });
   st.keyframes = {}; st.keyTimes = {}; st.ended = false;
 }
@@ -136,8 +153,10 @@ async function chooseSource(st, value) {
     NOTE(usb ? 'Questa webcam non si avvia insieme alle altre. Collegala a una presa USB su un altro lato del PC.' : `Webcam non avviata: ${e.message}`, true);
     return;
   }
-  st.kind = 'camera';
+  st.kind = 'camera'; st.deviceId = deviceId;
   st.sourceName = st.stream.getVideoTracks()[0]?.label ?? '';
+  let saved = null; try { saved = JSON.parse(localStorage.getItem(`corsa_xf_${st.sourceName || deviceId}`) ?? 'null'); } catch { /* nessuna */ }
+  st.xf.set(saved ?? { rot: 0, zoom: 1, cx: 0.5, cy: 0.5 }); st.xfUi.refresh();
   st.video.srcObject = st.stream;
   await startVideo(st);
 }
@@ -156,6 +175,7 @@ async function useFile(st, file) {
   if (st.video.error) { NOTE('Questo formato video non si apre nel browser. Convertilo in MP4 (H.264).', true); stopSource(st); return; }
   await startVideo(st);
   st.video.pause();
+  applyXf(st, false);
   $(`state_${st.name}`).textContent = 'Pronto: parte con la sessione';
 }
 
@@ -167,6 +187,7 @@ async function startVideo(st) {
   resetAnalyzer(st);
   sizeCanvas(st);
   allocRing(st);
+  st.video.style.visibility = xfOn(st) ? 'hidden' : '';
   if (!st.rvfcOn) { st.rvfcOn = true; st.video.requestVideoFrameCallback((n, m) => onVideoFrame(st, n, m)); }
   refreshButtons();
 }
@@ -188,7 +209,7 @@ async function ensurePose(st) {
 }
 
 function sizeCanvas(st) {
-  const w = st.video.videoWidth || 1280, h = st.video.videoHeight || 720;
+  const [w, h] = vsize(st);
   if (st.canvas.width !== w) st.canvas.width = w;
   if (st.canvas.height !== h) st.canvas.height = h;
 }
@@ -204,27 +225,28 @@ function onVideoFrame(st, now, meta) {
   if (st.kind === 'file' && !session) return;
   const t = st.kind === 'file' ? meta.mediaTime * 1000 : (meta.captureTime ?? now);
   let lm = null;
+  const src = vsrc(st);
   try {
     st.lastTs = Math.max(st.lastTs + 1, Math.round(performance.now()));
-    lm = st.pose.detect(analysisFrame(st), st.lastTs);
+    lm = st.pose.detect(analysisFrame(st, src), st.lastTs);
     st.errors = 0;
   } catch (e) {
     if (++st.errors === 5) { NOTE(`Errore nel riconoscimento (${VIEW_NAMES[st.name]}): ${e.message}`, true); console.error(e); }
     return;
   }
   handleFrame(st, lm, t);
-  if (session && !calib) stashFrame(st, st.video, lm, t);
+  if (session && !calib) stashFrame(st, src, lm, t);
 }
 
 // Il modello lavora comunque a bassa risoluzione: ridurre l'immagine prima accorcia i tempi di analisi.
-function analysisFrame(st) {
-  const vw = st.video.videoWidth, vh = st.video.videoHeight;
+function analysisFrame(st, src = st.video) {
+  const vw = src.videoWidth ?? src.width, vh = src.videoHeight ?? src.height;
   const sc = Math.min(1, ANALYSIS_SIZE / Math.max(vw, vh));
-  if (!vw || !vh || sc === 1) return st.video;
+  if (!vw || !vh || sc === 1) return src;
   const off = st.off ??= Object.assign(document.createElement('canvas'), { id: `off_${st.name}` }), w = Math.round(vw * sc), h = Math.round(vh * sc);
   if (off.width !== w) off.width = w;
   if (off.height !== h) off.height = h;
-  (st.offC ??= off.getContext('2d')).drawImage(st.video, 0, 0, w, h);
+  (st.offC ??= off.getContext('2d')).drawImage(src, 0, 0, w, h);
   return off;
 }
 
@@ -264,7 +286,7 @@ function drawOverlay(st, lm) {
   if (st.kind === 'demo') {
     ctx.fillStyle = '#0d1b2b'; ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = '#30414f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, h * 0.86); ctx.lineTo(w, h * 0.86); ctx.stroke();
-  }
+  } else if (xfOn(st)) ctx.drawImage(st.xf.canvas, 0, 0, w, h);
   if (lm) drawSkeleton(ctx, st, lm, w, h);
 }
 
@@ -441,8 +463,8 @@ function drawRunnerFig() {
   // Movimento ammorbidito tra un riconoscimento e il successivo.
   if (!st.dispLm || st.dispView !== v || st.dispLm.length !== raw.length) { st.dispLm = raw.map((p) => ({ ...p })); st.dispView = v; }
   for (let i = 0; i < raw.length; i++) { st.dispLm[i].x += (raw[i].x - st.dispLm[i].x) * 0.45; st.dispLm[i].y += (raw[i].y - st.dispLm[i].y) * 0.45; }
-  const P = st.dispLm, vid = st.kind !== 'demo' && st.video.videoWidth ? st.video : null;
-  const sw = vid ? vid.videoWidth : 1280, sh = vid ? vid.videoHeight : 720;
+  const P = st.dispLm, vid = st.kind !== 'demo' && st.video.videoWidth ? (xfOn(st) ? st.xf.canvas : st.video) : null;
+  const sw = vid ? vid.videoWidth ?? vid.width : 1280, sh = vid ? vid.videoHeight ?? vid.height : 720;
   // Riquadro attorno al corridore, che si sposta lentamente.
   const idx = [0, 11, 12, 15, 16, 23, 24, 27, 28, 31, 32];
   const xs = idx.map((i) => P[i].x * sw), ys = idx.map((i) => P[i].y * sh);
