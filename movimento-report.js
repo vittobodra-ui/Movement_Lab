@@ -1,6 +1,6 @@
 // Referto di una sessione e archivio.
 import { allSessions, getSession, deleteSession, saveSession } from './movimento-store.js';
-import { VIEW_NAMES, protocolById } from './movimento-measure.js';
+import { VIEW_NAMES, protocolById, unilateral } from './movimento-measure.js';
 import { movimentoFlags, movimentoPair, movimentoSigned, movimentoCross, sectionHtml, mark, sideWord, MOVIMENTO_KEYS } from './asym.js';
 import { setErrorsHtml } from './movimento-errori.js';
 
@@ -8,7 +8,18 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 export const it = (v, d = 0) => (v == null || !Number.isFinite(v) ? '–' : v.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d }));
 export const fmtDate = (ms) => new Date(ms).toLocaleString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const sec = (ms) => (ms == null ? '–' : it(ms / 1000, 1));
-export const setName = (set) => `${set.name}, vista ${VIEW_NAMES[set.view].toLowerCase()}`;
+// Lato valutato, nei movimenti fatti con un arto alla volta.
+export function setSide(set) {
+  const p = protocolById(set.protocolId, set.customSpec);
+  if (!unilateral(p, set.view)) return null;
+  return ['L', 'R'].includes(set.sideMode) ? set.sideMode : (p.group === 'arm' ? set.summary?.near : set.summary?.work) ?? null;
+}
+export const sideLabel = (set, s = setSide(set)) => {
+  if (!s) return '';
+  const arm = protocolById(set.protocolId, set.customSpec)?.group === 'arm';
+  return arm ? (s === 'L' ? 'braccio sinistro' : 'braccio destro') : (s === 'L' ? 'gamba sinistra' : 'gamba destra');
+};
+export const setName = (set) => { const sl = sideLabel(set); return `${set.name}, vista ${VIEW_NAMES[set.view].toLowerCase()}${sl ? `, ${sl}` : ''}`; };
 
 function signedCell(id, m) {
   const s = movimentoSigned(id, m);

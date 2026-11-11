@@ -124,7 +124,7 @@ export class SetAnalyzer {
       if (s > 0) this.dir = 1; else if (s < 0) this.dir = -1;
     } else this.dir = 1;
     // Lato misurato: quello vicino alla camera, con isteresi
-    if (this.sideMode === 'auto') {
+    if (this.sideMode === 'auto' || this.sideMode === 'both') {
       const score = (s) => { const ix = s === 'L' ? [11, 13, 15, 23, 25, 27] : [12, 14, 16, 24, 26, 28]; let z = 0, v = 0; for (const i of ix) { z += P[i].z; v += P[i].v; } return { z: z / 6, v: v / 6 }; };
       const l = score('L'), r = score('R');
       const raw = (l.v - r.v) * 1.5 + (r.z - l.z) * 3;
@@ -171,7 +171,8 @@ export class SetAnalyzer {
     for (const k of this.counters) k.c.push(res.values[k.id], t);
     if (this.recording) {
       this.frames.push(frame);
-      for (const [id, v] of Object.entries(res.values)) if (v != null) (this.series[id] ??= []).push({ t, v });
+      const sd = this.sideOf(frame);
+      for (const [id, v] of Object.entries(res.values)) if (v != null) (this.series[id] ??= []).push({ t, v, side: sd });
       const pp = pathPoint(this.protocol.path, P, this.work);
       if (pp) this.path.push({ t, x: pp.x, y: pp.y });
     }
@@ -187,6 +188,8 @@ export class SetAnalyzer {
       if (!best || Math.abs(f.t - r.tPeak) < Math.abs(best.t - r.tPeak)) best = f;
     }
     if (best) Object.assign(at, best.values);
+    // Entrambi i lati nella stessa serie: ogni ripetizione appartiene al lato misurato al suo picco.
+    if (side == null && this.sideMode === 'both' && best) side = this.sideOf(best);
     if (!this.recording) { this.previewN = (this.previewN ?? 0) + 1; this.onRepPreview?.({ ...r, i: this.previewN, side, driver: id, at, ext }, this); return; }
     const rep = { i: this.reps.filter((x) => x.side === side).length + 1, side, driver: id, ...r, at, ext };
     if (this.protocol.path && this.protocol.group === 'squat') {
@@ -197,13 +200,17 @@ export class SetAnalyzer {
     this.onRep?.(rep, this);
   }
 
-  // Riepilogo salvato nell'archivio.
-  summary() {
+  // Lato del movimento in quel fotogramma: braccio vicino alla camera o gamba di lavoro.
+  sideOf(f) { return this.protocol.group === 'arm' ? f.near : f.work; }
+
+  // Riepilogo salvato nell'archivio. Con side si tiene solo quel lato (serie con entrambi i lati).
+  summary(side = null) {
     const metrics = {};
     const specs = this.spec.metrics;
+    const reps = side ? this.reps.filter((r) => r.side === side) : this.reps;
     for (const m of specs) {
-      const peaks = this.reps.map((r) => r.at[m.id]).filter((v) => v != null && Number.isFinite(v));
-      const all = (this.series[m.id] ?? []).map((e) => e.v);
+      const peaks = reps.map((r) => r.at[m.id]).filter((v) => v != null && Number.isFinite(v));
+      const all = (this.series[m.id] ?? []).filter((e) => !side || e.side === side).map((e) => e.v);
       if (!all.length) continue;
       const st = meanSd(peaks);
       metrics[m.id] = { label: m.label, unit: m.unit, d: m.d, hint: m.hint ?? null, side: id2side(m.id), peakMean: st.mean, peakSd: st.sd, peakN: st.n, min: Math.min(...all), max: Math.max(...all) };
@@ -212,15 +219,15 @@ export class SetAnalyzer {
     const trace = {};
     const idsToTrace = [this.spec.primary, this.spec.second].filter(Boolean);
     for (const id of idsToTrace) {
-      const s = this.series[id] ?? [];
+      const s = (this.series[id] ?? []).filter((e) => !side || e.side === side);
       const step = Math.max(1, Math.floor(s.length / 300));
       trace[id] = s.filter((_, i) => i % step === 0).map((e) => [Math.round(e.t - t0), +e.v.toFixed(1)]);
     }
     const dur = this.frames.length ? (this.frames[this.frames.length - 1].t - t0) / 1000 : 0;
     const fpsAll = dur > 0 ? (this.frames.length - 1) / dur : 0;
     return {
-      view: this.view, near: this.near, work: this.work, dir: this.dir, durationS: dur, fps: fpsAll, quality: this.total ? this.valid / this.total : 0,
-      reps: this.reps.map((r) => ({ ...r, t0: r.t0 - t0, tPeak: r.tPeak - t0, t1: r.t1 - t0 })), metrics, trace, baseTilt: this.baseTilt, t0, viewWarn: this.viewWarn,
+      view: this.view, near: side ?? this.near, work: side ?? this.work, side, dir: this.dir, durationS: dur, fps: fpsAll, quality: this.total ? this.valid / this.total : 0,
+      reps: reps.map((r) => ({ ...r, t0: r.t0 - t0, tPeak: r.tPeak - t0, t1: r.t1 - t0 })), metrics, trace, baseTilt: this.baseTilt, t0, viewWarn: this.viewWarn,
     };
   }
 }

@@ -294,6 +294,8 @@ export class Station {
       ? new Promise((r) => { this.rec.onstop = r; this.rec.stop(); }) : Promise.resolve();
     await recStopped;
     const summary = a.summary();
+    // Entrambi i lati nella stessa serie: un riepilogo per lato, salvati come due serie da confrontare.
+    const bySide = this.sideMode === 'both' ? { L: a.summary('L'), R: a.summary('R') } : null;
     let blob = null, videoOffset = 0, mime = null;
     if (this.chunks.length) { blob = new Blob(this.chunks, { type: this.rec.mimeType }); videoOffset = this.kind === 'camera' ? this.recT0 ?? this.startPerf : 0; mime = this.rec.mimeType; }
     else if (this.kind === 'file') { blob = this.file; videoOffset = 0; mime = this.file.type; }
@@ -302,7 +304,7 @@ export class Station {
     if (this.keys.start) keyframes.push({ src: this.keys.start.src, ink: this.keys.start.ink ?? null, label: this.keys.start.label });
     for (const k of ['any', 'L', 'R']) if (this.keys[k]) keyframes.push({ src: this.keys[k].src, ink: this.keys[k].ink ?? null, label: this.keys[k].label });
     for (const s of this.snaps) keyframes.push({ src: s.src, ink: s.ink ?? null, label: s.label, values: s.values });
-    const out = { summary, keyframes, pack: packFrames(a.frames), blob, mime, videoOffset, aspect: a.aspect, sourceName: this.kind === 'demo' ? '' : this.sourceName, simulated: this.kind === 'demo', mirror: this.mirror, kind: this.kind };
+    const out = { summary, bySide, keyframes, pack: packFrames(a.frames), blob, mime, videoOffset, aspect: a.aspect, sourceName: this.kind === 'demo' ? '' : this.sourceName, simulated: this.kind === 'demo', mirror: this.mirror, kind: this.kind };
     this.newAnalyzer(false);
     return out;
   }

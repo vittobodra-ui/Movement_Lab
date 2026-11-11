@@ -1,4 +1,4 @@
-import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList, CATEGORIES, categoryOf } from './movimento-measure.js';
+import { PROTOCOLS, protocolById, customProtocol, NAMES, VIEW_NAMES, defaultView, viewList, CATEGORIES, categoryOf, unilateral } from './movimento-measure.js';
 import { reanalyzePack } from './movimento-analysis.js';
 import { setErrorsHtml, cueSvg } from './movimento-errori.js';
 import { drawPose, drawAlerts } from './movimento-overlay.js';
@@ -6,7 +6,7 @@ import { Station } from './movimento-station.js';
 import { xfControls } from './movimento-camxf.js';
 import { nearestPoint } from './movimento-overlay.js';
 import { Review } from './movimento-review.js';
-import { renderReport, renderArchive, repsTable, bindCharts, download, it, setName, fmtDate } from './movimento-report.js';
+import { renderReport, renderArchive, repsTable, bindCharts, download, it, setName, setSide, sideLabel, fmtDate } from './movimento-report.js';
 import { saveSession, getSession, allSessions, putMedia, getMedia, deleteMedia, packFrames } from './movimento-store.js';
 import { movimentoLive, movimentoSetFlags, flagLine, mark, sideWord } from './asym.js';
 
@@ -145,6 +145,7 @@ async function switchProtocol(id) {
 }
 $('exSel').onchange = (e) => switchProtocol(e.target.value);
 let redo = null;
+let presetSide = null;
 async function openCapture(pid, viewArg, redoArg) {
   closeCapture();
   const spec = pid === 'custom' ? null : protocolById(pid);
@@ -153,6 +154,7 @@ async function openCapture(pid, viewArg, redoArg) {
   customPick = pid === 'custom' ? { a: [], mode: 'tre', done: false } : null;
   redo = null;
   if (redoArg?.startsWith('redo:')) { const [, sid, setId] = redoArg.split(':'); redo = { sid: Number(sid), setId: Number(setId) }; }
+  presetSide = redoArg?.startsWith('side:') ? redoArg.slice(5) : null;
   $('capture').hidden = false;
   $('capture').classList.remove('tools-open');
   $('capName').textContent = protocol.name;
@@ -185,7 +187,7 @@ async function initBay(k, view, startCam = true) {
   $(`goal${k}`).value = goal; b.st.goal = goal === '' ? null : parseFloat(goal);
   $(`goal${k}`).onchange = (e) => { const v = e.target.value; ls.set(`am_goal_${protocol.id}`, v); b.st.goal = v === '' ? null : parseFloat(v); };
   $(`loadL${k}`).hidden = !protocol.load;
-  $(`side${k}`).onchange = (e) => { b.st.sideMode = e.target.value; b.st.newAnalyzer(false); };
+  $(`side${k}`).onchange = (e) => { b.st.sideMode = e.target.value; b.st.newAnalyzer(false); sideHint(b, true); };
   $(`view${k}`).onchange = (e) => setView(b, e.target.value);
   $(`mir${k}`).onchange = (e) => { b.st.mirror = e.target.checked; };
   $(`file${k}`).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setDemoPressed(k, false); await b.st.useFile(f); refreshGo(); e.target.value = ''; $(`src${k}`).value = 'file'; };
@@ -211,7 +213,8 @@ async function loadRedo(b) {
   const ext = (media.mime ?? media.blob.type ?? '').includes('mp4') ? 'mp4' : 'webm';
   const file = media.blob instanceof File ? media.blob : new File([media.blob], `serie.${ext}`, { type: media.blob.type || media.mime || 'video/webm' });
   b.st.mirror = !!media.mirror; $(`mir${b.k}`).checked = b.st.mirror;
-  if (set.sideMode && $(`side${b.k}`).querySelector(`option[value="${set.sideMode}"]`)) { $(`side${b.k}`).value = set.sideMode; b.st.sideMode = set.sideMode; }
+  const sm = set.both ? 'both' : set.sideMode;
+  if (sm && $(`side${b.k}`).querySelector(`option[value="${sm}"]`)) { $(`side${b.k}`).value = sm; b.st.sideMode = sm; }
   if (set.load) $(`load${b.k}`).value = set.load;
   b.st.xf.set({ rot: 0, zoom: 1, cx: 0.5, cy: 0.5 }); b.xfUi?.refresh(); // il video salvato è già girato
   await b.st.useFile(file); $(`src${b.k}`).value = 'file';
@@ -234,9 +237,24 @@ function buildSideSel(b) {
   $(`sideT${k}`).textContent = b.view === 'side' ? (protocol.group === 'arm' ? 'Braccio misurato' : 'Lato verso la camera') : 'Gamba di lavoro';
   if (protocol.family === 'slrdl' && b.view === 'side') $(`sideT${k}`).textContent = 'Gamba d’appoggio';
   const f = b.view === 'side' ? ['Automatico', 'Sinistro', 'Destro'] : ['Automatica', 'Sinistra', 'Destra'];
-  sel.innerHTML = `<option value="auto">${f[0]}</option><option value="L">${f[1]}</option><option value="R">${f[2]}</option>`;
-  sel.value = wrap.hidden ? 'auto' : ['auto', 'L', 'R'].includes(prev) ? prev : 'auto';
+  const uniEx = unilateral(protocol, b.view);
+  if (uniEx) {
+    // Un arto alla volta oppure entrambi nella stessa serie
+    $(`sideT${k}`).textContent = protocol.group === 'arm' ? 'Braccio da valutare' : 'Gamba da valutare';
+    const m = protocol.group === 'arm' ? ['Solo sinistro', 'Solo destro'] : ['Solo sinistra', 'Solo destra'];
+    sel.innerHTML = `<option value="auto">Un lato, riconosciuto da solo</option><option value="L">${m[0]}</option><option value="R">${m[1]}</option><option value="both">Entrambi, alternati</option>`;
+  } else sel.innerHTML = `<option value="auto">${f[0]}</option><option value="L">${f[1]}</option><option value="R">${f[2]}</option>`;
+  const want = (b.k === 0 ? presetSide : null) ?? prev;
+  if (b.k === 0) presetSide = null;
+  sel.value = wrap.hidden ? 'auto' : [...sel.options].some((o) => o.value === want) ? want : 'auto';
   b.st.sideMode = sel.value;
+  sideHint(b);
+}
+function sideHint(b, now = false) {
+  if (b.st.sideMode !== 'both') return;
+  const t = b.view === 'side' ? 'Entrambi i lati: fai le ripetizioni con un lato verso la camera, poi girati e fai l’altro. Le salvo come due serie da confrontare.'
+    : 'Entrambi i lati: alterna destra e sinistra. Ogni ripetizione va al suo lato e le salvo come due serie da confrontare.';
+  if (now || b.k === 0) setHint(b.k, t, false, 9000);
 }
 function setView(b, view) {
   b.view = view;
@@ -535,11 +553,15 @@ async function finishSet() {
   if (redo?.set) { await replaceRedo(useful[0]); return; }
   session ??= newSession(); syncForm();
   const ids = [];
-  for (const { b, out } of useful) {
-    const id = Date.now() + b.k;
+  const parts = useful.flatMap(({ b, out }) => (out.bySide
+    ? ['L', 'R'].filter((s) => out.bySide[s].reps.length).map((s, i) => ({ b, out, summary: out.bySide[s], sideMode: s, both: true, n: i }))
+    : [{ b, out, summary: out.summary, sideMode: b.st.sideMode, both: false, n: 0 }]));
+  if (!parts.length) { setHint(live[0]?.k ?? 0, 'Serie non salvata: nessuna ripetizione riconosciuta per nessuno dei due lati.', true, 8000); return; }
+  for (const { b, out, summary, sideMode, both, n } of parts) {
+    const id = Date.now() + b.k * 10 + n;
     const set = {
-      id, protocolId: protocol.id, customSpec: protocol.custom ? protocol.spec : undefined, name: protocol.name, view: b.view, sideMode: b.st.sideMode, load: $(`load${b.k}`).value, createdAt: Date.now(),
-      summary: out.summary, keyframes: out.keyframes, simulated: out.simulated, aspect: out.aspect, sourceName: out.sourceName, hasVideo: !!out.blob,
+      id, protocolId: protocol.id, customSpec: protocol.custom ? protocol.spec : undefined, name: protocol.name, view: b.view, sideMode, both: both || undefined, load: $(`load${b.k}`).value, createdAt: Date.now(),
+      summary, keyframes: out.keyframes, simulated: out.simulated, aspect: out.aspect, sourceName: out.sourceName, hasVideo: !!out.blob,
     };
     session.sets.push(set); ids.push(id);
     try {
@@ -558,8 +580,9 @@ async function replaceRedo({ b, out }) {
   if (idx < 0) { setHint(b.k, 'La serie originale non è più in archivio.', true, 8000); return; }
   const id = Date.now();
   const set = {
-    ...old, id, protocolId: protocol.id, customSpec: protocol.custom ? protocol.spec : undefined, name: protocol.name, view: b.view, sideMode: b.st.sideMode, load: $(`load${b.k}`).value,
-    summary: out.summary, keyframes: out.keyframes, simulated: false, aspect: out.aspect, hasVideo: true, edited: Date.now(), editNote: 'rianalizzata dal video',
+    ...old, id, protocolId: protocol.id, customSpec: protocol.custom ? protocol.spec : undefined, name: protocol.name, view: b.view,
+    sideMode: out.bySide ? old.sideMode : b.st.sideMode, both: out.bySide ? true : undefined, load: $(`load${b.k}`).value,
+    summary: out.bySide ? out.bySide[old.sideMode] ?? out.summary : out.summary, keyframes: out.keyframes, simulated: false, aspect: out.aspect, hasVideo: true, edited: Date.now(), editNote: 'rianalizzata dal video',
   };
   s.sets[idx] = set;
   await saveSession(s);
@@ -657,6 +680,35 @@ $('toolsBtn').onclick = (e) => { const c = $('capture').classList.toggle('tools-
 /* ---------- risultato e revisione ---------- */
 let openReviews = [];
 function closeReviews() { openReviews.forEach((r) => r.destroy()); openReviews = []; }
+// Movimenti con un arto alla volta: confronto con l'ultima serie dello stesso esercizio fatta con l'altro lato.
+const SMALL_ANGLE = new Set(['valgus', 'shin', 'drop', 'pelvis', 'shTilt', 'trunkLat', 'shin_L', 'shin_R']);
+function sideCompareHtml(s, set, peers) {
+  const side = setSide(set);
+  if (!side) return '';
+  const os = side === 'L' ? 'R' : 'L', same = (k) => k.protocolId === set.protocolId && k.view === set.view && setSide(k) === os;
+  // prima nella stessa sessione, poi nelle sessioni precedenti della stessa persona
+  const inSession = s.sets.filter((k) => k.id !== set.id && same(k)).at(-1);
+  const prev = inSession ? null : peers.filter(({ o, k }) => same(k) && (o.person || '') === (s.person || '')).sort((a, b) => b.k.createdAt - a.k.createdAt)[0];
+  const other = inSession ?? prev?.k, otherSid = inSession ? s.id : prev?.o.id;
+  const otherName = sideLabel(set, os);
+  if (!other) {
+    return `<div class="side-cmp"><h3>Confronto con ${esc(otherName)}</h3><p class="fine">Manca una serie con ${esc(otherName)} per questo esercizio.</p>
+      <a class="btn" href="#capture/${esc(set.protocolId)}/${esc(set.view)}/side:${os}">Registra ${esc(otherName)}</a></div>`;
+  }
+  const A = set.summary.metrics ?? {}, B = other.summary.metrics ?? {};
+  const L = side === 'L' ? A : B, R = side === 'L' ? B : A;
+  const rows = Object.keys(A).filter((id) => B[id] && Number.isFinite(A[id].peakMean) && Number.isFinite(B[id].peakMean)).map((id) => {
+    const m = A[id], d = m.d ?? 0, diff = Math.abs(L[id].peakMean - R[id].peakMean);
+    const lim = m.unit === '°' ? (SMALL_ANGLE.has(id) ? 3 : 10) : m.unit === '%' ? 10 : null;
+    const lv = lim && diff >= lim ? (diff >= 2 * lim ? 2 : 1) : 0, big = L[id].peakMean > R[id].peakMean ? 'sinistra' : 'destra';
+    const u = m.unit === '°' ? '°' : ` ${esc(m.unit)}`;
+    return `<tr${lv ? ' class="flag"' : ''}><th scope="row">${esc(m.label)}</th><td class="n">${it(L[id].peakMean, d)}${u}</td><td class="n">${it(R[id].peakMean, d)}${u}</td><td class="n">${lv ? `<span class="asym lv${lv}">${lv === 2 ? '▲▲' : '▲'} ${it(diff, d)}${u}</span> <span class="asym-note">maggiore a ${big}</span>` : `${it(diff, d)}${u}`}</td></tr>`;
+  }).join('');
+  const loads = set.load && other.load && String(set.load) !== String(other.load) ? `<p class="note">Carico diverso: ${esc(set.load)} kg e ${esc(other.load)} kg.</p>` : '';
+  return `<div class="side-cmp"><h3>Confronto sinistra e destra</h3>
+    <p class="fine">Con <a href="#result/${otherSid}/${other.id}">${esc(otherName)}, ${fmtDate(other.createdAt)}</a>. Valori al punto massimo, media delle ripetizioni. ▲ differenza oltre la soglia, ▲▲ oltre il doppio.</p>${loads}
+    <div class="tablewrap"><table class="metrics"><thead><tr><th>Misura</th><th class="n">Sinistra</th><th class="n">Destra</th><th class="n">Differenza</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
 async function renderResult(sid, setId) {
   const root = $('result'), s = await getSession(sid), set = s?.sets?.find((k) => String(k.id) === String(setId));
   if (!set) { root.innerHTML = '<p class="empty">Questa serie non è più in archivio. <a href="#archivio">Apri l’archivio</a></p>'; return; }
@@ -683,6 +735,7 @@ async function renderResult(sid, setId) {
           ${peers.length ? `<label>Confronta con <select id="cmpSel"><option value="">Scegli una serie</option>${peers.slice(0, 40).map(({ o, k }) => `<option value="${o.id}:${k.id}">${esc(o.person || 'Senza nome')}, ${fmtDate(k.createdAt)}</option>`).join('')}</select></label>` : ''}
           <button id="delSet" class="quiet">Elimina la serie</button>
         </div>
+        ${sideCompareHtml(s, set, peers)}
         ${others.length ? `<p class="fine">Altre serie della sessione: ${others.map((k) => `<a href="#result/${s.id}/${k.id}">${esc(setName(k))}</a>`).join(', ')}.</p>` : ''}
         <label>Nota sulla serie <input id="setNote" value="${esc(set.note ?? '')}"></label>
         ${editPanel(set, media)}
@@ -748,9 +801,11 @@ function bindEdit(s, set, media) {
     const p = protocolById($('edEx').value), view = $('edView').value, sideMode = $('edSideL').hidden ? 'auto' : $('edSide').value;
     e.target.disabled = true; e.target.textContent = 'Ricalcolo…';
     try {
-      const a = reanalyzePack(media.pack, { protocol: p, view, sideMode, aspect: set.aspect ?? 16 / 9, baseTilt: set.summary?.baseTilt ?? null });
-      const summary = a.summary();
-      Object.assign(set, { protocolId: p.id, name: p.name, view, sideMode, load: $('edLoad').value, summary, edited: Date.now(), editNote: 'ricalcolata dai punti salvati' });
+      // Serie nata con entrambi i lati: si rianalizza tutto il video e si tiene il lato di questa serie.
+      const keepBoth = set.both && sideMode === set.sideMode && p.id === set.protocolId && view === set.view;
+      const a = reanalyzePack(media.pack, { protocol: p, view, sideMode: keepBoth ? 'both' : sideMode, aspect: set.aspect ?? 16 / 9, baseTilt: set.summary?.baseTilt ?? null });
+      const summary = a.summary(keepBoth ? sideMode : null);
+      Object.assign(set, { both: keepBoth || undefined, protocolId: p.id, name: p.name, view, sideMode, load: $('edLoad').value, summary, edited: Date.now(), editNote: 'ricalcolata dai punti salvati' });
       const stored = await getMedia(set.id).catch(() => null);
       await putMedia({ ...(stored ?? { setId: set.id, blob: null, videoOffset: media.videoOffset, mime: media.mime, mirror: media.mirror }), pack: packFrames(a.frames) });
       await saveSession(s); if (s.id === session?.id) session = s;

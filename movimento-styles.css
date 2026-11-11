@@ -345,3 +345,11 @@ body[data-platform="mobile"] .exsel select { font-size: 1rem; }
 .exgo { background: var(--ink); color: var(--paper) !important; border-color: var(--ink); margin-top: auto; text-align: center; font-weight: 600; min-height: 44px; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 900px) { .cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .cats { grid-template-columns: 1fr; } }
+
+/* Confronto tra i lati nell'esito della serie */
+.side-cmp { border: 1px solid var(--line, #d5dbe1); border-radius: 8px; padding: .7rem .9rem; margin: .8rem 0; background: var(--card, #fff); }
+.side-cmp h3 { margin: 0 0 .3rem; font-size: 1.02rem; }
+.side-cmp table.metrics { margin-top: .4rem; }
+.side-cmp tr.flag th { font-weight: 700; }
+.side-cmp .asym { font-weight: 700; white-space: nowrap; }
+.side-cmp .asym-note { display: block; font-size: .78rem; color: #5d6873; }

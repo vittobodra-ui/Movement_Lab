@@ -366,6 +366,14 @@ export const customProtocol = (a, b, c, ref) => ({
 function customView(a, b, c, ref) {
   return { metrics: [M.custom(a, b, c, ref)], primary: 'custom', driver: 'custom', minRange: 15, peakName: 'Valore massimo', startName: 'Valore minimo', noFilterSides: true };
 }
+// Movimenti in cui lavora un arto alla volta: si può scegliere il lato, oppure entrambi alternati.
+export function unilateral(p, view) {
+  if (!p || p.custom) return false;
+  const spec = p.views?.[view];
+  if (!spec || spec.perSide) return false;
+  if (['select', 'lower', 'front'].includes(spec.legPick) || p.family === 'slrdl') return true;
+  return p.group === 'arm' && view === 'side';
+}
 export const protocolById = (id, spec) => (id === 'custom' ? customProtocol(spec?.a ?? 23, spec?.b ?? 25, spec?.c ?? 27, spec?.ref ?? null) : PROTOCOLS.find((p) => p.id === id));
 export const VIEW_NAMES = { side: 'Laterale', front: 'Frontale', rear: 'Posteriore' };
 export const VIEW_ORDER = ['rear', 'front', 'side'];

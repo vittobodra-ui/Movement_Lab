@@ -28,7 +28,7 @@ function wild(core) {
     const nums = [], names = [];
     w.kinds.forEach((kd, i) => (kd === '#' ? nums : names).push(m[i + 1]));
     let a = 0, b = 0;
-    return w.v.replace(/[#@]/g, (c) => (c === '#' ? decimals(nums[a++] ?? '') : names[b++] ?? ''));
+    return w.v.replace(/[#@]/g, (c) => { if (c === '#') return decimals(nums[a++] ?? ''); const n = names[b++] ?? ''; return whole1(n) ?? n; });
   }
   return null;
 }
