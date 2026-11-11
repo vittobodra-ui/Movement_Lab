@@ -112,8 +112,8 @@ export function corsaFlags(doc, T = thresholds()) {
 
 /* ---------- accosciate e braccia ---------- */
 export const MOVIMENTO_KEYS = ['bigAngle', 'smallAngle', 'percent'];
-const ARM_PROTOCOLS = new Set(['flex', 'ext', 'abd', 'rot', 'elbow', 'press', 'wrist']);
-const PAIR_CLASS = { abd: 'bigAngle', elbow: 'bigAngle', knee: 'bigAngle', hip: 'bigAngle', shin: 'smallAngle', valgus: 'smallAngle' };
+const ARM_PROTOCOLS = new Set(['flex', 'ext', 'abd', 'rot', 'rot0', 'rot90', 'elbow', 'press', 'wrist']);
+const PAIR_CLASS = { abd: 'bigAngle', rot: 'bigAngle', elbow: 'bigAngle', knee: 'bigAngle', hip: 'bigAngle', shin: 'smallAngle', valgus: 'smallAngle' };
 const CROSS_CLASS = { knee: 'bigAngle', hip: 'bigAngle', tibia: 'bigAngle', shoulder: 'bigAngle', elbow: 'bigAngle', forearm: 'bigAngle', kneeRest: 'bigAngle', valgus: 'smallAngle', shin: 'smallAngle', drop: 'smallAngle' };
 const SIGNED = {
   pelvis: { key: 'smallAngle', plus: 'destra più bassa', minus: 'sinistra più bassa' },

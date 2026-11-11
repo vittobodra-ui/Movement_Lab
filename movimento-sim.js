@@ -194,6 +194,8 @@ export function simulate(kind, view, t, params = {}, aspect = 16 / 9) {
     if (kind === 'press') { armsL = 70 + 100 * u; armsR = 70 + 92 * u; elL = 100 * (1 - u) + 5; elR = 100 * (1 - u) + 5; }
     if (kind === 'elbow') { elL = 5 + S.elbowMax * u; elR = 5 + (S.elbowMax - 12) * u; armsL = armsR = 5; }
     if (kind === 'overhead') { armsL = 172; armsR = 165; elL = elR = 4; }
+    if (kind === 'rot0') { armsL = armsR = 4; elL = elR = 0; }
+    if (kind === 'rot90') { armsL = armsR = 90; elL = elR = 0; }
     const shY = hipY - TRUNK;
     const dy = Math.tan(drop * rad) * HIP_W; // gamba di lavoro = sinistra: l'anca destra cade
     const hipL = { x: cx + L * HIP_W, y: hipY - dy }, hipR = { x: cx - L * HIP_W, y: hipY + dy };
@@ -221,6 +223,18 @@ export function simulate(kind, view, t, params = {}, aspect = 16 / 9) {
       set(idx.sh, sh.x, sh.y); set(idx.el, E.x, E.y); set(idx.wr, W.x, W.y); set(idx.ix, W.x, W.y + 0.04); set(idx.pi, W.x, W.y + 0.035); set(idx.th, W.x, W.y + 0.03);
     };
     placeArm(L, shL, armsL, elL, 'L'); placeArm(-L, shR, armsR, elR, 'R');
+    if (kind === 'rot0' || kind === 'rot90') {
+      // Gomito a 90°: l'avambraccio parte in avanti (verso la camera) e ruota fuori (+) e dentro (−).
+      const lim = kind === 'rot0' ? { L: S.rot0L ?? 70, R: S.rot0R ?? 55, ir: S.rot0Ir ?? -45 } : { L: S.rot90L ?? 90, R: S.rot90R ?? 72, ir: S.rot90Ir ?? -50 };
+      for (const s of ['L', 'R']) {
+        const c = s === 'L' ? { el: 13, wr: 15, pi: 17, ix: 19, th: 21 } : { el: 14, wr: 16, pi: 18, ix: 20, th: 22 };
+        const lat = s === 'L' ? L : -L, th = (lim.ir + (lim[s] - lim.ir) * u) * rad, E = pts[c.el];
+        const FA = 0.8 * UARM; // proporzione tipica avambraccio / braccio
+        const W = kind === 'rot0' ? { x: E.x + lat * Math.sin(th) * FA, y: E.y } : { x: E.x, y: E.y - Math.sin(th) * FA };
+        const z = -Math.cos(th) * FA;
+        set(c.wr, W.x, W.y, z); set(c.ix, W.x, W.y - 0.01, z); set(c.pi, W.x, W.y - 0.008, z); set(c.th, W.x, W.y - 0.006, z);
+      }
+    }
     const hy = shY - 0.1;
     set(0, cx, hy); for (const i of [1, 2, 3, 4, 5, 6]) set(i, cx + (i < 4 ? L : -L) * 0.02, hy - 0.012);
     set(7, cx + L * 0.04, hy - 0.005); set(8, cx - L * 0.04, hy - 0.005); set(9, cx + L * 0.012, hy + 0.025); set(10, cx - L * 0.012, hy + 0.025);

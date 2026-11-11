@@ -104,6 +104,28 @@ export const M = {
       return { v: Math.atan2(-u.y, u.x * ctx.dir) * DEG, side: s, draw: { at: P[c.el], r1: { x: ctx.dir, y: 0 }, r2: u, guide: true } };
     },
   }),
+  // Rotazione di spalla vista da davanti, gomito a 90°. L'avambraccio si accorcia quando punta verso la camera:
+  // dalla sua lunghezza apparente si stima l'angolo. mode 'side': braccio lungo il fianco; 'abd': braccio a 90° sul piano frontale.
+  shoulderRot: (who, mode, o = {}) => ({
+    id: `rot_${who}`, base: 'rot', label: 'Rotazione: esterna (+), interna (−)', unit: '°', d: 0, who, ...o,
+    f(ctx) {
+      const s = resolve(ctx, who), c = CH[s], oc = CH[other(s)], P = ctx.P;
+      if (!seen(ctx, c.sh, c.el, c.wr, oc.sh)) return null;
+      const hum = sub(P[c.el], P[c.sh]), u = sub(P[c.wr], P[c.el]);
+      // Lunghezza vera dell'avambraccio: la più lunga vista finora rispetto al braccio (quando è sul piano della camera),
+      // almeno l'80% del braccio, che è la proporzione tipica.
+      const hl = Math.hypot(hum.x, hum.y), ul = Math.hypot(u.x, u.y), mem = ctx.mem ?? {}, k = `rotRatio_${s}`;
+      mem[k] = Math.min(1.05, Math.max(mem[k] ?? 0.8, ul / Math.max(hl, 1e-6)));
+      const L = Math.max(hl * mem[k], ul, 1e-6);
+      const lateral = Math.sign(P[c.sh].x - P[oc.sh].x) || 1;
+      const comp = mode === 'abd' ? -u.y : u.x * lateral;
+      const v = Math.asin(Math.max(-1, Math.min(1, comp / L))) * DEG;
+      // Quadrante: 0° = avambraccio in avanti, verso la camera
+      const r1 = mode === 'abd' ? { x: lateral, y: 0 } : { x: 0, y: 1 };
+      const a = v / DEG, r2 = mode === 'abd' ? { x: lateral * Math.cos(a), y: -Math.sin(a) } : { x: lateral * Math.sin(a), y: Math.cos(a) };
+      return { v, side: s, draw: { at: P[c.el], r1, r2, guide: true } };
+    },
+  }),
   armVertical: (who = 'near') => ({
     id: 'armVert', base: 'armVert', label: 'Braccio sulla verticale', unit: '°', d: 0, who, hint: 'Sopra zero: braccia cadute in avanti',
     f(ctx) { const s = resolve(ctx, who), c = CH[s]; if (!seen(ctx, c.sh, c.wr)) return null; return { v: fromVertical(ctx.P[c.sh], ctx.P[c.wr], ctx.dir), side: s, draw: { at: ctx.P[c.sh], r1: UP, r2: sub(ctx.P[c.wr], ctx.P[c.sh]), guide: true } }; },
@@ -274,7 +296,9 @@ export const PROTOCOLS = [
   { id: 'flex', group: 'arm', name: 'Flessione di spalla', hint: 'Camera di lato. Misura il braccio più vicino alla camera.', path: 'wrists', sim: 'flex', views: { side: { metrics: [M.shoulderSag('near'), M.elbow('near', { quiet: true }), ...shoulderExtra], primary: 'shoulder', driver: 'shoulder', minRange: 25, peakName: 'Massima flessione', startName: 'Braccio lungo il corpo' } } },
   { id: 'ext', group: 'arm', name: 'Estensione di spalla', hint: 'Camera di lato. Il valore è negativo quando il braccio va indietro.', path: 'wrists', sim: 'ext', views: { side: { metrics: [M.shoulderSag('near'), M.elbow('near', { quiet: true }), ...shoulderExtra], primary: 'shoulder', driver: 'shoulder', driverSign: -1, minRange: 12, peakName: 'Massima estensione', startName: 'Braccio lungo il corpo' } } },
   { id: 'abd', group: 'arm', name: 'Abduzione di spalla', hint: 'Camera davanti o dietro. Misura destra e sinistra insieme.', path: 'wrists', sim: 'abd', views: { front: abdView(), rear: abdView() } },
-  { id: 'rot', group: 'arm', name: 'Rotazione di spalla a 90°', hint: 'Spalla e gomito a 90°, camera di lato. Stima: il gomito è vicino alla spalla nell’immagine.', estimate: true, path: 'wrists', sim: 'rot', views: { side: { metrics: [M.forearm('near'), M.elbow('near', { quiet: true })], primary: 'forearm', driver: 'forearm', minRange: 20, peakName: 'Massima rotazione esterna', startName: 'Avambraccio orizzontale' } } },
+  { id: 'rot0', group: 'arm', name: 'Rotazione di spalla, braccio lungo il corpo', hint: 'Camera davanti, all’altezza delle spalle. Inizia con le braccia distese lungo i fianchi per un secondo, poi piega i gomiti a 90° con gli avambracci in avanti e ruota verso l’esterno e verso l’interno. Misura destra e sinistra insieme.', estimate: true, path: 'wrists', sim: 'rot0', views: { front: rotView('side'), rear: rotView('side') } },
+  { id: 'rot90', group: 'arm', name: 'Rotazione di spalla a 90° di abduzione', hint: 'Camera davanti, all’altezza delle spalle. Apri le braccia a 90° sul piano frontale e tienile distese per un secondo, poi piega i gomiti a 90° con gli avambracci in avanti: verso l’alto è rotazione esterna, verso il basso interna.', estimate: true, path: 'wrists', sim: 'rot90', views: { front: rotView('abd'), rear: rotView('abd') } },
+  { id: 'rot', hidden: true, group: 'arm', name: 'Rotazione di spalla a 90°, di lato', hint: 'Spalla e gomito a 90°, camera di lato. Stima: il gomito è vicino alla spalla nell’immagine.', estimate: true, path: 'wrists', sim: 'rot', views: { side: { metrics: [M.forearm('near'), M.elbow('near', { quiet: true })], primary: 'forearm', driver: 'forearm', minRange: 20, peakName: 'Massima rotazione esterna', startName: 'Avambraccio orizzontale' } } },
   { id: 'elbow', group: 'arm', name: 'Flessione di gomito', hint: 'Di lato misura il braccio vicino, di fronte entrambi.', path: 'wrists', sim: 'elbow', load: true, views: { side: { metrics: [M.elbow('near'), M.shoulderSag('near', { label: 'Braccio rispetto al tronco', quiet: true }), M.trunk({ label: 'Compenso del tronco', quiet: true })], primary: 'elbow', driver: 'elbow', minRange: 30, peakName: 'Massima flessione', startName: 'Gomito esteso' }, front: elbowFront(), rear: elbowFront() } },
   { id: 'press', group: 'arm', name: 'Press sopra la testa', hint: 'Camera davanti o dietro: gomiti, altezza delle braccia e simmetria.', path: 'wrists', sim: 'press', load: true, views: { front: pressView(), rear: pressView() } },
   { id: 'wrist', group: 'arm', name: 'Polso', hint: 'Stima: i punti della mano sono poco precisi. Avvicina la camera.', estimate: true, path: null, sim: 'wrist', views: { side: { metrics: [M.wrist('near'), M.elbow('near', { quiet: true })], primary: 'wrist', driver: 'wrist', minRange: 15, peakName: 'Massima deviazione', startName: 'Polso allineato' } } },
@@ -325,6 +349,9 @@ const LIFT = [
 PROTOCOLS.push(...LIFT);
 function abdView() {
   return { metrics: [M.shoulderAbd('L'), M.shoulderAbd('R'), M.elbow('L', { quiet: true }), M.elbow('R', { quiet: true }), M.trunkLateral(), M.shoulderTilt()], primary: 'abd_L', second: 'abd_R', perSide: { L: 'abd_L', R: 'abd_R' }, minRange: 25, peakName: 'Massima abduzione', startName: 'Braccia lungo il corpo' };
+}
+function rotView(mode) {
+  return { metrics: [M.shoulderRot('L', mode), M.shoulderRot('R', mode), M.elbow('L', { quiet: true }), M.elbow('R', { quiet: true }), M.trunkLateral(), M.shoulderTilt()], primary: 'rot_L', second: 'rot_R', perSide: { L: 'rot_L', R: 'rot_R' }, minRange: 20, rotMode: mode, peakName: 'Massima rotazione esterna', startName: 'Avambracci in avanti' };
 }
 function elbowFront() {
   return { metrics: [M.elbow('L'), M.elbow('R'), M.trunkLateral(), M.wristDiff()], primary: 'elbow_L', second: 'elbow_R', perSide: { L: 'elbow_L', R: 'elbow_R' }, minRange: 30, peakName: 'Massima flessione', startName: 'Gomito esteso' };

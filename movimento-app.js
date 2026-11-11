@@ -64,7 +64,7 @@ function renderCats() {
   const box = $('cats'); if (box.dataset.ready) return;
   box.dataset.ready = '1';
   box.innerHTML = CATEGORIES.map((c) => {
-    const list = c.custom ? [{ id: 'custom', name: 'Angolo personalizzato', hint: 'Tocca tre punti di repere sull’immagine: il secondo è il vertice dell’angolo.' }] : PROTOCOLS.filter(c.match);
+    const list = c.custom ? [{ id: 'custom', name: 'Angolo personalizzato', hint: 'Tocca tre punti di repere sull’immagine: il secondo è il vertice dell’angolo.' }] : PROTOCOLS.filter((p) => c.match(p) && !p.hidden);
     const last = ls.get(`am_cat_${c.id}`, ''), pick = list.find((p) => p.id === last) ?? list[0];
     return `<section class="excat" data-cat="${c.id}"><h2>${esc(c.name)}</h2><p class="fine">${esc(c.text)}</p>
       <label>Movimento <select id="pick-${c.id}">${list.map((p) => `<option value="${p.id}"${p === pick ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
@@ -120,7 +120,7 @@ function setHint(k, msg, warn = false, keepMs = 0) {
   if (bays[k]) bays[k].hintUntil = keepMs ? performance.now() + keepMs : 0;
 }
 function fillExSel() {
-  $('exSel').innerHTML = CATEGORIES.map((c) => `<optgroup label="${esc(c.name)}">${c.custom ? '<option value="custom">Angolo personalizzato</option>' : PROTOCOLS.filter(c.match).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('');
+  $('exSel').innerHTML = CATEGORIES.map((c) => `<optgroup label="${esc(c.name)}">${c.custom ? '<option value="custom">Angolo personalizzato</option>' : PROTOCOLS.filter((p) => c.match(p) && !p.hidden).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('');
   $('exSel').value = protocol.custom ? 'custom' : protocol.id;
   $('capName').hidden = !protocol.custom;
 }
@@ -721,7 +721,7 @@ function editPanel(set, media) {
   return `<details class="edit-set" id="editSet"><summary>Modifica la serie e ricalcola</summary>
     <p class="fine">Se in ripresa era scelto l’esercizio, la vista o il lato sbagliato, correggilo qui. “Ricalcola” rifà misure e ripetizioni dai punti salvati, in un attimo. “Rianalizza il video” riconosce di nuovo il corpo dal video, per esempio con il riconoscimento più preciso.</p>
     <div class="edit-row">
-      <label>Esercizio <select id="edEx">${CATEGORIES.filter((c) => !c.custom).map((c) => `<optgroup label="${esc(c.name)}">${PROTOCOLS.filter(c.match).map((p) => `<option value="${p.id}"${p.id === set.protocolId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+      <label>Esercizio <select id="edEx">${CATEGORIES.filter((c) => !c.custom).map((c) => `<optgroup label="${esc(c.name)}">${PROTOCOLS.filter((p) => c.match(p) && (!p.hidden || p.id === set.protocolId)).map((p) => `<option value="${p.id}"${p.id === set.protocolId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>
       <label>Ripresa da <select id="edView"></select></label>
       <label id="edSideL">Lato <select id="edSide"><option value="auto">Automatico</option><option value="L">Sinistro</option><option value="R">Destro</option></select></label>
       <label>Carico kg <input id="edLoad" type="number" step="0.5" value="${esc(set.load ?? '')}"></label>

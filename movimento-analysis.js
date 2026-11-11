@@ -155,7 +155,7 @@ export class SetAnalyzer {
     }
   }
 
-  ctxFor(P) { return { P, near: this.near, dir: this.dir, work: this.work, leg: this.leg, topY: this.topY, minVis: this.minVis, baseTilt: this.baseTilt }; }
+  ctxFor(P) { return { P, near: this.near, dir: this.dir, work: this.work, leg: this.leg, topY: this.topY, minVis: this.minVis, baseTilt: this.baseTilt, mem: (this.mem ??= {}) }; }
 
   evaluateFrame(P, t) {
     this.updateContext(P, t);

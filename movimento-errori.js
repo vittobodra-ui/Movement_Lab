@@ -9,13 +9,17 @@ const ok = (v) => typeof v === 'number' && Number.isFinite(v);
 const rad = Math.PI / 180;
 const SIDE = { L: 'sinistra', R: 'destra' };
 const SIDE_M = { L: 'sinistro', R: 'destro' };
+const SIDE_F = { L: 'sinistra', R: 'destra' };
+// Valori di riferimento indicativi per la rotazione di spalla (gradi), gomito a 90°.
+const ROT_REF = { rot0: { er: 70, ir: 70 }, rot90: { er: 90, ir: 70 } };
+const irOf = (m) => (m && Number.isFinite(m.min) && m.min < 0 ? -m.min : null);
 
 /* ---------- soglie ---------- */
 // Valori indicativi: il fisioterapista li conferma guardando il video.
 export const LIMITS = {
   depth: 10, trunkExtra: 15, trunkTibia: 15, ankle: 22, armsForward: 15, lungeKnee: 80,
   valgus: 10, kneesNarrow: 85, pelvis: 4, shift: 10, trunkLat: 5, shoulders: 4, wrists: 8, drop: 4, singleTrunk: 6,
-  flex: 160, ext: 45, abd: 160, elbow: 135, press: 165, rot: 80, comp: 10, armSwing: 20,
+  flex: 160, ext: 45, abd: 160, elbow: 135, press: 165, rot: 80, rot0Er: 60, rot90Ir: 50, comp: 10, armSwing: 20,
   barFoot: 10, shoulderBehind: -8, lockBack: -8, hipsHigh: 45, hipsLow: 110, rdlKnee: 35, stiffKnee: 20, rdlHip: 60, slKnee: 35, slTrunk: 55,
   flare: 70, forearm: 20, benchDepth: 70, hipLift: 8, barTilt: 6, wristOut: 15, sag: -6, pike: 8,
   chin: 0, hangArms: 25, pullTilt: 5, pullLat: 6, swing: 20, kip: 40, rowTrunk: 15, rowElbow: 70,
@@ -130,6 +134,16 @@ export function setFindings(set, T = LIMITS) {
       } else for (const s of ['L', 'R']) {
         const x = v(`elbow_${s}`);
         add(`rom_${s}`, `Flessione limitata, gomito ${SIDE_M[s]}`, x == null ? null : x < T.elbow, x == null ? '' : `${fmt(x)}°, riferimento circa 145°.`, 'Il gomito si piega poco.', 'Verifica la mobilità del gomito.', ['farm'], s);
+      }
+    } else if (id === 'rot0' || id === 'rot90') {
+      // Rotazione di spalla da davanti: esterna al picco, interna dal valore più basso della serie.
+      const ref = ROT_REF[id];
+      for (const s of ['L', 'R']) {
+        const er = v(`rot_${s}`), ir = irOf(M[`rot_${s}`]);
+        add(`er_${s}`, `Rotazione esterna limitata, spalla ${SIDE_F[s]} (stima)`, er == null ? null : er < (id === 'rot0' ? T.rot0Er : T.rot), er == null ? '' : `${fmt(er)}°, riferimento circa ${ref.er}°.`,
+          'L’avambraccio ruota poco verso ' + (id === 'rot0' ? 'l’esterno.' : 'l’alto.'), 'Lavora sulla rotazione esterna della spalla.', ['farm'], s);
+        if (id === 'rot90') add(`ir_${s}`, `Rotazione interna limitata, spalla ${SIDE_F[s]} (stima)`, ir == null ? null : ir < T.rot90Ir, ir == null ? '' : `${fmt(ir)}°, riferimento circa ${ref.ir}°.`,
+          'L’avambraccio scende poco verso il basso.', 'Lavora sulla rotazione interna e sulla capsula posteriore della spalla.', ['farm'], s);
       }
     } else if (id === 'rot') {
       const x = v('forearm');
@@ -417,6 +431,12 @@ function figureAngles(set) {
     if (id === 'rot') { const x = v('forearm'); if (x == null) return null; return { kind: 'side', stand: true, me: { thigh: 90, trunk: 0, sh: 90, el: x }, ref: { thigh: 90, trunk: 0, sh: 90, el: 90 } }; }
     return null;
   }
+  if (id === 'rot0' || id === 'rot90') {
+    const sides = {};
+    for (const s of ['L', 'R']) { const er = v(`rot_${s}`); if (er != null) sides[s] = { er, ir: irOf(M[`rot_${s}`]) }; }
+    if (!Object.keys(sides).length) return null;
+    return { kind: 'rot', mode: id === 'rot0' ? 'side' : 'abd', sides, ref: ROT_REF[id] };
+  }
   const base = { trunkLat: v('trunkLat', 0), shTilt: v('shTilt', 0), descent: 0 };
   if (id === 'abd' || id === 'press') {
     if (v('abd_L') == null && v('abd_R') == null) return null;
@@ -471,9 +491,61 @@ function liftFigure(proto, view, v, sm) {
 function badge(x, y, n) { return `<g class="mf-badge" transform="translate(${f1(x)} ${f1(y)})"><circle r="12"/><text y="5">${n}</text></g>`; }
 
 // SVG della figura: riferimento tratteggiato sotto, persona sopra, errori a doppia linea con il numero.
+// Immagine della correzione per la rotazione: a sinistra il movimento corto, a destra quello completo.
+function rotCueSvg(f, id, mirror) {
+  const abd = id === 'rot90', ir = f.key.startsWith('ir_'), ref = ROT_REF[id], R = 62, W = 350, H = abd ? 2 * R + 50 : R + 66;
+  const side = f.key.slice(-1), lat0 = side === 'L' ? 1 : -1, lat = mirror ? -lat0 : lat0;
+  const panel = (ox, a, bad) => {
+    const cx = ox + (abd ? (lat > 0 ? 50 : W / 2 - 50) : W / 4), cy = abd ? R + 30 : 40;
+    const dir = (x) => { const r = x * Math.PI / 180; return abd ? [Math.cos(r) * lat, -Math.sin(r)] : [Math.sin(r) * lat, Math.cos(r)]; };
+    const P = (x, k = 1) => { const u = dir(x); return [cx + u[0] * R * k, cy + u[1] * R * k]; };
+    let d = ''; for (let x = -90; x <= 90; x += 5) { const A = P(x); d += `${x === -90 ? 'M' : 'L'}${f1(A[0])} ${f1(A[1])}`; }
+    const B = P(a, 0.92), line = (cls) => `<line x1="${cx}" y1="${cy}" x2="${f1(B[0])}" y2="${f1(B[1])}" class="${cls}"/>`;
+    return `<path d="${d}" class="rot-dial"/>${bad ? line('mf-err-o') + line('mf-err-i') : line('mf-me')}<circle cx="${cx}" cy="${cy}" r="6" class="mf-joint"/>`
+      + `<text x="${ox + W / 4}" y="16" text-anchor="middle" class="cue-lab ${bad ? 'no' : 'yes'}">${bad ? '✕ Così no' : '✓ Così'}</text>`;
+  };
+  const full = ir ? -ref.ir : ref.er, short = full * 0.5;
+  return `<svg viewBox="0 0 ${W} ${H}" class="cue-svg" role="img" aria-label="A sinistra l’errore, a destra il movimento corretto">${panel(0, short, true)}<line x1="${W / 2}" x2="${W / 2}" y1="8" y2="${H - 8}" class="cue-sep"/>${panel(W / 2, full, false)}</svg>`;
+}
+
+// Rotazione di spalla: un quadrante per lato, con l'avambraccio come lancetta.
+// Braccio lungo il corpo: visto dall'alto (0° in avanti, + verso l'esterno). Braccio a 90°: visto di lato (0° in avanti, + verso l'alto).
+function rotFigureSvg(fa, findings) {
+  const abd = fa.mode === 'abd', R = 78, W = 400, H = abd ? 2 * R + 64 : R + 72, flags = findings.filter((f) => f.state === 'flag');
+  const panel = (s, cx) => {
+    const d = fa.sides[s], cy = abd ? R + 26 : 30;
+    // direzione sullo schermo: 0° in basso (in avanti, verso chi guarda) per la vista dall'alto, a destra per la vista di lato
+    const lat = s === 'L' ? 1 : -1;
+    const dir = (a) => { const r = a * Math.PI / 180; return abd ? [Math.cos(r) * lat, -Math.sin(r)] : [Math.sin(r) * lat, Math.cos(r)]; };
+    const P = (a, k = 1) => { const u = dir(a); return [cx + u[0] * R * k, cy + u[1] * R * k]; };
+    const ln = (a, cls, k = 1) => { const B = P(a, k); return `<line x1="${cx}" y1="${cy}" x2="${f1(B[0])}" y2="${f1(B[1])}" class="${cls}"/>`; };
+    let o = '';
+    // arco del movimento possibile
+    const arc = (a0, a1, cls) => { let d = ''; for (let a = a0; a <= a1; a += 5) { const A = P(a); d += `${a === a0 ? 'M' : 'L'}${f1(A[0])} ${f1(A[1])}`; } return `<path d="${d}" class="${cls}"/>`; };
+    o += arc(-90, 90, 'rot-dial');
+    for (const a of [-90, -60, -30, 0, 30, 60, 90]) { const A = P(a, 0.93), B = P(a, 1); o += `<line x1="${f1(A[0])}" y1="${f1(A[1])}" x2="${f1(B[0])}" y2="${f1(B[1])}" class="rot-tick"/>`; }
+    o += ln(fa.ref.er, 'mf-ref') + (abd ? ln(-fa.ref.ir, 'mf-ref') : '');
+    const erBad = flags.some((f) => f.key === `er_${s}`), irBad = flags.some((f) => f.key === `ir_${s}`);
+    const hand = (a, bad, cls = 'mf-me') => (bad ? ln(a, 'mf-err-o', 0.9) + ln(a, 'mf-err-i', 0.9) : ln(a, cls, 0.9));
+    if (d.ir != null) o += hand(-d.ir, irBad, 'mf-me far');
+    o += hand(d.er, erBad);
+    o += `<circle cx="${cx}" cy="${cy}" r="7" class="mf-joint"/>`;
+    const lab = (a, txt, k = 1.16) => { const A = P(a, k); return `<text x="${f1(A[0])}" y="${f1(A[1] + 4)}" text-anchor="middle" class="rot-lab">${txt}</text>`; };
+    o += lab(d.er, `${fmt(d.er)}°`);
+    if (d.ir != null) o += lab(-d.ir, `−${fmt(d.ir)}°`);
+    o += `<text x="${cx}" y="${H - 6}" text-anchor="middle" class="rot-side">${s === 'L' ? 'Sinistra' : 'Destra'}</text>`;
+    return o;
+  };
+  const sides = Object.keys(fa.sides);
+  const title = abd ? 'Avambraccio visto di lato: in alto rotazione esterna, in basso interna' : 'Avambraccio visto dall’alto: verso l’esterno rotazione esterna, verso il corpo interna';
+  const body = sides.map((s) => panel(s, sides.length === 1 ? W / 2 : (s === 'R' ? R + 38 : W - R - 38))).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="mf-svg rot-fig" role="img" aria-label="${title}">${body}</svg><p class="mf-cap">${title}. Tratteggio: riferimento; linea grigia: rotazione interna.</p>`;
+}
+
 export function figureSvg(set, findings) {
   const fa = figureAngles(set);
   if (!fa) return '';
+  if (fa.kind === 'rot') return rotFigureSvg(fa, findings);
   const W = 330, H = 360, S = 380, flags = findings.filter((f) => f.state === 'flag');
   let me, ref, segsOf, ox, oy = 330, flip = 1;
   if (fa.kind === 'side') {
@@ -626,6 +698,7 @@ const POSE = {
   front: (p, c) => frontPose(p, c.view), hangF: (p, c) => hangFront(p, c.view),
 };
 export function cueSvg(f, proto, view, { mirror = false } = {}) {
+  if (proto?.id === 'rot0' || proto?.id === 'rot90') return rotCueSvg(f, proto.id, mirror);
   const c = proto && !proto.custom ? cueBase(proto, view) : null; if (!c) return '';
   const k = f.key.replace(/_[LR]$/, '');
   if (k === 'rom' && /_[LR]$/.test(f.key) && c.kind === 'front') {

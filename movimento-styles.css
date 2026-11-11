@@ -246,6 +246,11 @@ body[data-platform="mobile"] .lastrep { margin: .1rem 0; }
 .mf-svg { display: block; width: 100%; height: auto; font-family: var(--font); }
 .mf-ground { stroke: var(--ink2); stroke-width: 1.5; }
 .mf-ref { fill: none; stroke: #8496a6; stroke-width: 2; stroke-dasharray: 6 4; stroke-linecap: round; }
+.rot-dial { fill: none; stroke: #c9d2da; stroke-width: 1.5; }
+.rot-tick { stroke: #8496a6; stroke-width: 1.5; }
+.rot-lab { font-size: 15px; font-weight: 700; fill: var(--ink); }
+.rot-side { font-size: 13px; fill: #5d6873; text-transform: uppercase; letter-spacing: .08em; }
+.mf-cap { margin: .3rem 0 0; font-size: .82rem; color: #5d6873; }
 .mf-me { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
 .mf-me.far { stroke: #8496a6; stroke-width: 3; }
 .mf-head { fill: none; stroke: var(--ink); stroke-width: 3; }

@@ -45,12 +45,15 @@ export class Station {
   }
   newAnalyzer(recording) {
     if (!this.protocol) return;
+    // Le misure del corpo già prese (es. lunghezza dell'avambraccio) passano alla serie successiva dello stesso esercizio.
+    const mem = this.analyzer?.protocol === this.protocol && this.analyzer?.view === this.view ? this.analyzer.mem : undefined;
     this.analyzer = new SetAnalyzer({
       protocol: this.protocol, view: this.view, aspect: this.aspect, sideMode: this.sideMode, baseTilt: this.baseTilt, recording,
       onRep: (r, a) => this.handleRep(r, a),
       onPeak: (id, side, v, t, frame) => this.handlePeak(side, frame, t),
       onRepPreview: (r, a) => this.repFeedback(r, a),
     });
+    if (mem) this.analyzer.mem = mem;
     this.trail = [];
     this.feedback = new LiveFeedback(this.protocol, this.view);
   }
