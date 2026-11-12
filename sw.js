@@ -1,6 +1,6 @@
 // Rende l'app apribile senza rete. Con la rete si usano sempre i file appena scaricati, così pagina e moduli
 // sono della stessa versione; la copia salvata serve solo senza rete. Riconoscimento e modelli restano nel dispositivo.
-const VERSION = 'lab-9a68c4cd2cad';
+const VERSION = 'lab-b38d2be19f9f';
 const ENGINE = 'lab-engine-0.10.14';
 const SHELL = ["./", "asym.js", "bici-app.js", "bici-fit.js", "bici-sim.js", "bici-store.js", "bici-styles.css", "bici.html", "corsa-camxf.js", "corsa-cues.js", "corsa-ink.js", "corsa-main.js", "corsa-metrics.js", "corsa-report.js", "corsa-ruota.js", "corsa-sim.js", "corsa-store.js", "corsa-styles.css", "corsa-telefono.css", "corsa-telefono.html", "corsa-telefono.js", "corsa.html", "data.js", "engine.js", "i18n-core.js", "i18n-en.js", "i18n.js", "icon-192.png", "icon-512.png", "index.html", "manifest.webmanifest", "movimento-analysis.js", "movimento-app.js", "movimento-camxf.js", "movimento-errori.js", "movimento-feedback.js", "movimento-ink.js", "movimento-measure.js", "movimento-overlay.js", "movimento-report.js", "movimento-review.js", "movimento-sim.js", "movimento-station.js", "movimento-store.js", "movimento-styles.css", "movimento.html", "stabilometria-app.js", "stabilometria-board.js", "stabilometria-figure.js", "stabilometria-report.js", "stabilometria-signal.js", "stabilometria-sim.js", "stabilometria-store.js", "stabilometria-styles.css", "stabilometria.html", "suite.css", "suite.js", "suitebar.css", "suitebar.js", "sw.js"];
 const ENGINE_HOSTS = ['cdn.jsdelivr.net', 'storage.googleapis.com'];
